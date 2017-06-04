@@ -71,7 +71,7 @@ public:
 
 	void compute_min_distance(double stop)			//compute min, given c,d theta, start, end.
 	{
-		assert(stop > m_start);
+		//assert(stop > m_start);
 
 		if(m_d == GEODESIC_INF)
 		{

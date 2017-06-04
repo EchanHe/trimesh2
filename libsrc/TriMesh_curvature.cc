@@ -376,7 +376,7 @@ void TriMesh::need_curvatures_threshold_color() {
 
 		std::cout << "Writing threshold curvature to curvature_thre.csv" << std::endl;
 		std::ofstream file;
-		file.open("curvature_thre.csv");
+		file.open("..\\..\\..\\data\\curvature_thre.csv");
 		//float a, b;
 		for (auto & a : mean_curv) {
 			if (a > maxThres || a < minThres) {
@@ -406,7 +406,7 @@ void TriMesh::need_curvatures_threshold_color() {
 		}
 		std::cout << "Writing threshold curvature to curvature_thre.csv" << std::endl;
 		std::ofstream file;
-		file.open("curvature_thre.csv");
+		file.open("..\\..\\..\\data\\curvature.csv");
 		//float a, b;
 		for (auto & a : gaus_curv) {
 			if (a > maxThres || a < minThres) {

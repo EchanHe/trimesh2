@@ -1138,7 +1138,7 @@ inline void GeodesicAlgorithmExact::construct_propagated_intervals(bool invert,
 
 			p->min() = 0.0;					//it will be changed later on
 
-			assert(p->start() < p->stop());
+			//assert(p->start() < p->stop());
 		}
 	}
 	else				//now we have to invert the intervals 
