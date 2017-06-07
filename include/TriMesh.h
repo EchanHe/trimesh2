@@ -93,6 +93,7 @@ public:
 
 	// Computed per-vertex properties
 	::std::vector<vec> normals;
+	::std::vector<vec> inwardNormals;
 	::std::vector<vec> pdir1, pdir2;
 	//yichen he mean and gaussian curvature
 
@@ -134,6 +135,7 @@ public:
 			triangulate_grid();
 	}
 	void need_normals();
+	void need_inwardNormals();
 	void need_pointareas();
 	void need_curvatures();
 	void need_curvatures_color();
@@ -146,6 +148,9 @@ public:
 	void need_across_edge();
 
 	void writeCurvature();
+
+	void need_sdf();
+
 
 	//
 	// Delete everything

@@ -203,7 +203,8 @@
     <ClCompile Include="..\..\..\libsrc\TriMesh_pointareas.cc" />
     <ClCompile Include="..\..\..\libsrc\TriMesh_stats.cc" />
     <ClCompile Include="..\..\..\libsrc\TriMesh_tstrips.cc" />
-    <ClCompile Include="TriMesh_AGD.cpp" />
+    <ClCompile Include="TriMesh_algo_AGD.cpp" />
+    <ClCompile Include="trimesh_sdf.cpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

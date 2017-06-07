@@ -13,7 +13,7 @@ Various mesh-munging algorithms using TriMeshes
 #include "XForm.h"
 #include "KDtree.h"
 #include <limits>
-
+#include <geodesic\geodesic_algorithm_exact.h>
 
 
 namespace trimesh {
@@ -196,4 +196,14 @@ extern void find_overlap(TriMesh *mesh1, TriMesh *mesh2,
 // connected components, but they are within "tol" of each other.
 extern void shared(TriMesh *mesh, float tol);
 
+//----------geodesic
+//template<class Points, class Faces>
+//std::vector<geodesic::SurfacePoint> cal_geo_dis(int start, int end, Points points, Faces faces);
+
+//template<class Points, class Faces>
+template<class Points, class Faces>
+extern void cal_geo_dis(Points points, Faces faces);
+
+void test_geo();
+void init_geod_mesh(TriMesh * mesh , geodesic::Mesh& geoMesh);
 }; // namespace trimesh

@@ -14,7 +14,8 @@ a vertex, or to the triangle).
 namespace trimesh {
 
 // Compute per-vertex point areas
-void TriMesh::need_pointareas()
+void TriMesh::
+need_pointareas()
 {
 	if (pointareas.size() == vertices.size())
 		return;

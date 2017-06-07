@@ -113,4 +113,21 @@ void TriMesh::need_normals()
 	dprintf("Done.\n");
 }
 
+void TriMesh::need_inwardNormals() {
+	need_normals();
+
+	int nv = vertices.size();
+	if (int(inwardNormals.size()) == nv)
+		return;
+	//initial inward normals
+
+	inwardNormals.clear();
+	inwardNormals.resize(nv);
+
+	for (int i = 0; i < nv; i++) {
+		inwardNormals[i] = -normals[i];
+	}
+
+}
+
 }; // namespace trimesh

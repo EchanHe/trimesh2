@@ -263,7 +263,7 @@ void TriMesh::need_curvatures()
 	//std::transform(mean_curv.begin(),mean_curv.end(), mean_curv.begin() , );
 	
 	//need_curvatures_threshold_color();
-	need_curvatures_threshold_color();
+	//need_curvatures_threshold_color();
 	dprintf("Done.\n");
 }
 

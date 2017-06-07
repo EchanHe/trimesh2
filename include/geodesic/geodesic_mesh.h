@@ -315,7 +315,7 @@ inline void Mesh::build_adjacencies()
 		//compute angles for the faces
 	for(unsigned i=0; i<m_faces.size(); ++i)
 	{
-		std::cout << std::endl;
+		//std::cout << std::endl;
 		Face& f = m_faces[i];
 		double abc[3];		
 		double sum = 0;
