@@ -15,8 +15,7 @@ Uses algorithm from
 #include "TriMesh_algo.h"
 #include "lineqn.h"
 
-#include <iostream>
-#include <fstream>
+
 #include <numeric>
 
 #include <boost\iterator\zip_iterator.hpp>
@@ -414,11 +413,8 @@ void TriMesh::need_curvatures_threshold_color() {
 			}
 		}
 	}
-
-
-
-
 }
+
 
 void TriMesh::writeCurvature() {
 	std::cout << "Writing curvature to curvature.csv"<<std::endl;

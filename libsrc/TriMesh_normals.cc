@@ -24,6 +24,7 @@ namespace trimesh {
 // Compute per-vertex normals
 void TriMesh::need_normals()
 {
+
 	// Nothing to do if we already have normals
 	int nv = vertices.size();
 	if (int(normals.size()) == nv)
@@ -126,6 +127,39 @@ void TriMesh::need_inwardNormals() {
 
 	for (int i = 0; i < nv; i++) {
 		inwardNormals[i] = -normals[i];
+	}
+
+}
+void TriMesh::need_faceNormals() {
+	need_normals();
+
+	int nv = vertices.size();
+	int nf = faces.size();
+	if (int(faceNormals.size()) == nf)
+		return;
+
+	faceNormals.resize(nf);
+	for (int i=0 ; i<nf ; i++){
+		vec e[3] = { vertices[faces[i][2]] - vertices[faces[i][1]],
+			vertices[faces[i][0]] - vertices[faces[i][2]],
+			vertices[faces[i][1]] - vertices[faces[i][0]] };
+
+		faceNormals[i] = -e[0] CROSS e[1];
+		if (len((e[0] CROSS -e[2])- (e[1] CROSS -e[0]))>0.00001)
+			std::cout << "larger";
+	}
+}
+
+void TriMesh::need_faceMidPts() {
+	int nf = faces.size();
+	if (faceMidPts.size() == nf)
+		return;
+	faceMidPts.resize(nf);
+	for (int i = 0; i < nf; i++) {
+		float aveX = (vertices[faces[i][0]][0] + vertices[faces[i][1]][0] + vertices[faces[i][2]][0]) / 3;
+		float aveY = (vertices[faces[i][0]][1] + vertices[faces[i][1]][1] + vertices[faces[i][2]][1]) / 3;
+		float aveZ = (vertices[faces[i][0]][2] + vertices[faces[i][1]][2] + vertices[faces[i][2]][2]) / 3;
+		faceMidPts[i] = vec(aveX, aveY, aveZ);
 	}
 
 }

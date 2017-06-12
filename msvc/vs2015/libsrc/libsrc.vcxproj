@@ -169,6 +169,7 @@
     <ClInclude Include="..\..\..\include\GL\glut.h" />
     <ClInclude Include="..\..\..\include\ICP.h" />
     <ClInclude Include="..\..\..\include\KDtree.h" />
+    <ClInclude Include="..\..\..\include\kdTree_face.h" />
     <ClInclude Include="..\..\..\include\lineqn.h" />
     <ClInclude Include="..\..\..\include\mempool.h" />
     <ClInclude Include="..\..\..\include\noise3d.h" />
@@ -188,23 +189,25 @@
     <ClCompile Include="..\..\..\libsrc\GLCamera.cc" />
     <ClCompile Include="..\..\..\libsrc\ICP.cc" />
     <ClCompile Include="..\..\..\libsrc\KDtree.cc" />
+    <ClCompile Include="..\..\..\libsrc\kdTree_face.cpp" />
     <ClCompile Include="..\..\..\libsrc\lmsmooth.cc" />
     <ClCompile Include="..\..\..\libsrc\overlap.cc" />
     <ClCompile Include="..\..\..\libsrc\remove.cc" />
     <ClCompile Include="..\..\..\libsrc\reorder_verts.cc" />
     <ClCompile Include="..\..\..\libsrc\shared.cc" />
     <ClCompile Include="..\..\..\libsrc\subdiv.cc" />
+    <ClCompile Include="..\..\..\libsrc\TriMesh_algo_AGD.cpp" />
     <ClCompile Include="..\..\..\libsrc\TriMesh_bounding.cc" />
+    <ClCompile Include="..\..\..\libsrc\trimesh_color.cpp" />
     <ClCompile Include="..\..\..\libsrc\TriMesh_connectivity.cc" />
     <ClCompile Include="..\..\..\libsrc\TriMesh_curvature.cc" />
     <ClCompile Include="..\..\..\libsrc\TriMesh_grid.cc" />
     <ClCompile Include="..\..\..\libsrc\TriMesh_io.cc" />
     <ClCompile Include="..\..\..\libsrc\TriMesh_normals.cc" />
     <ClCompile Include="..\..\..\libsrc\TriMesh_pointareas.cc" />
+    <ClCompile Include="..\..\..\libsrc\trimesh_sdf.cpp" />
     <ClCompile Include="..\..\..\libsrc\TriMesh_stats.cc" />
     <ClCompile Include="..\..\..\libsrc\TriMesh_tstrips.cc" />
-    <ClCompile Include="TriMesh_algo_AGD.cpp" />
-    <ClCompile Include="trimesh_sdf.cpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

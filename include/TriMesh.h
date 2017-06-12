@@ -62,7 +62,8 @@ public:
 	enum StatOp { STAT_MIN, STAT_MAX, STAT_MEAN, STAT_MEANABS,
 		STAT_RMS, STAT_MEDIAN, STAT_STDEV, STAT_TOTAL };
 	enum StatVal { STAT_VALENCE, STAT_FACEAREA, STAT_ANGLE,
-		STAT_DIHEDRAL, STAT_EDGELEN, STAT_X, STAT_Y, STAT_Z };
+		STAT_DIHEDRAL, STAT_EDGELEN, STAT_X, STAT_Y, STAT_Z,
+	STAT_MEAN_CURV , STAT_GAUS_CURV};
 
 	//
 	// Constructor
@@ -94,6 +95,8 @@ public:
 	// Computed per-vertex properties
 	::std::vector<vec> normals;
 	::std::vector<vec> inwardNormals;
+	::std::vector<vec> faceNormals;
+	::std::vector<vec> faceMidPts;
 	::std::vector<vec> pdir1, pdir2;
 	//yichen he mean and gaussian curvature
 
@@ -103,6 +106,10 @@ public:
 	::std::vector< Vec<4,float> > dcurv;
 	::std::vector<vec> cornerareas;
 	::std::vector<float> pointareas;
+
+	//shape diameter function
+	::std::vector<float> sdf;
+	::std::vector<float> sdf_brute;
 
 	// Bounding structures
 	box bbox;
@@ -136,6 +143,9 @@ public:
 	}
 	void need_normals();
 	void need_inwardNormals();
+	void need_faceNormals();
+	void need_faceMidPts();
+
 	void need_pointareas();
 	void need_curvatures();
 	void need_curvatures_color();
@@ -148,8 +158,13 @@ public:
 	void need_across_edge();
 
 	void writeCurvature();
+	void remove_outlier(StatVal val);
+
 
 	void need_sdf();
+	void need_sdf_brute();
+	//template<class T>
+	void TriMesh::color_vertex(::std::vector<float> attri, bool optimized = true);
 
 
 	//

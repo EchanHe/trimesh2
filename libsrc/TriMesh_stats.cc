@@ -82,6 +82,18 @@ float TriMesh::stat(StatOp op, StatVal val)
 				vals.push_back(vertices[i][2]);
 			break;
 		}
+		case STAT_MEAN_CURV: {
+			int nv = vertices.size();
+			for (int i = 0; i < nv; i++)
+				vals.push_back(mean_curv[i]);
+			break;
+		}
+		case STAT_GAUS_CURV: {
+			int nv = vertices.size();
+			for (int i = 0; i < nv; i++)
+				vals.push_back(gaus_curv[i]);
+			break;
+		}
 		default:
 			return 0.0f;
 	}
@@ -177,5 +189,56 @@ float TriMesh::feature_size()
 		    samples.end());
 	return sqrt(samples[samples.size()/2]);
 }
+
+void TriMesh::remove_outlier(StatVal val) {
+	vector <float>* vals;
+	//switch (val) {
+	//case STAT_MEAN_CURV: {
+	//	for (int i; i < mean_curv.size(); i++) {
+	//		if (mean_curv[i] > max)
+	//			mean_curv[i] = max;
+	//		if (mean_curv[i] < min)
+	//			mean_curv[i] = min;
+	//	}
+	//	break;
+	//}
+	//default:
+	//	return;
+	//}
+
+	
+
+
+	float mean = stat(STAT_MEAN, val);
+	float std = stat(STAT_STDEV, val);
+
+	float max = mean + 2 * std;
+	float min = mean - 2 * std;
+
+	switch (val) {
+		case STAT_MEAN_CURV: {
+			for (int i=0; i < mean_curv.size(); i++) {
+				if (mean_curv[i] > max)
+					mean_curv[i] = max;
+				if (mean_curv[i] < min)
+					mean_curv[i] = min;
+			}
+			break;
+		}
+		case STAT_GAUS_CURV: {
+			for (int i=0; i < gaus_curv.size(); i++) {
+				if (gaus_curv[i] > max)
+					gaus_curv[i] = max;
+				if (gaus_curv[i] < min)
+					gaus_curv[i] = min;
+			}
+			break;
+		}
+		default:
+			return;
+	}
+
+}
+
 
 }; // namespace trimesh

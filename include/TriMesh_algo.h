@@ -206,4 +206,8 @@ extern void cal_geo_dis(Points points, Faces faces);
 
 void test_geo();
 void init_geod_mesh(TriMesh * mesh , geodesic::Mesh& geoMesh);
+
+vec rotation( vec dir, float angle, vec rotateAxis);
+void make_cone(float halfAngle, int rings, int intervals, vec origin, vec normal, std::vector<vec>& output);
+void make_cone(vec origin, vec normal, std::vector<vec>& output);
 }; // namespace trimesh
