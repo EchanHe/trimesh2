@@ -14,7 +14,7 @@ Various mesh-munging algorithms using TriMeshes
 #include "KDtree.h"
 #include <limits>
 #include <geodesic\geodesic_algorithm_exact.h>
-
+#include <geodesic\geodesic_algorithm_dijkstra_alternative.h>
 
 namespace trimesh {
 
@@ -203,11 +203,14 @@ extern void shared(TriMesh *mesh, float tol);
 //template<class Points, class Faces>
 template<class Points, class Faces>
 extern void cal_geo_dis(Points points, Faces faces);
-
+std::vector<geodesic::SurfacePoint> cal_geo_dis(int start, int end, geodesic::Mesh mesh);
 void test_geo();
 void init_geod_mesh(TriMesh * mesh , geodesic::Mesh& geoMesh);
 
 vec rotation( vec dir, float angle, vec rotateAxis);
 void make_cone(float halfAngle, int rings, int intervals, vec origin, vec normal, std::vector<vec>& output);
 void make_cone(vec origin, vec normal, std::vector<vec>& output);
+float triangle_inter(vec vertex, vec dir, vec v1, vec v2, vec v3);
+
+
 }; // namespace trimesh

@@ -3,7 +3,8 @@ Szymon Rusinkiewicz
 Princeton University
 
 subdiv.cc
-Perform subdivision on a mesh.
+Perform sub
+on a mesh.
 */
 
 

@@ -54,5 +54,23 @@ namespace trimesh {
 				colors[i] = Color(0.0f, 1 - (intensity - 0.5f) * 2, (intensity - 0.5f) * 2);
 		}
 	}
+
+	void TriMesh::color_vertex(::std::vector<int> index) {
+		int nv = vertices.size();
+		if (index.size()==0)
+			return;
+		if (colors.size() == vertices.size())
+			return;
+		colors.resize(nv);
+
+		for (int i = 0; i < nv; i++) {
+			colors[i] = Color(0.2, 0.2, 0.2);
+		}
+
+		for (int i = 0; i < index.size(); i++) {
+			colors[index[i]] = Color(1.0, 0.1, 0.1);
+		}
+
+	}
 }
 

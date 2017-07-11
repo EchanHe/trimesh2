@@ -45,11 +45,17 @@ static bool read_stl( FILE *f, TriMesh *mesh);
 static bool read_verts_bin(FILE *f, TriMesh *mesh, bool &need_swap,
 	int nverts, int vert_len, int vert_pos, int vert_norm,
 	int vert_color, bool float_color, int vert_conf);
+static bool read_verts_bin(FILE *f, TriMesh *mesh, bool &need_swap,
+	int nverts, int vert_len, int vert_pos, int vert_norm,
+	int vert_color, bool float_color, int vert_conf, int vert_quality);
 static bool slurp_verts_bin(FILE *f, TriMesh *mesh, bool need_swap,
 	int nverts);
 static bool read_verts_asc(FILE *f, TriMesh *mesh,
 	int nverts, int vert_len, int vert_pos, int vert_norm,
 	int vert_color, bool float_color, int vert_conf);
+static bool read_verts_asc(FILE *f, TriMesh *mesh,
+	int nverts, int vert_len, int vert_pos, int vert_norm,
+	int vert_color, bool float_color, int vert_conf, int vert_quality);
 static bool read_faces_bin(FILE *f, TriMesh *mesh, bool need_swap,
 	int nfaces, int face_len, int face_count, int face_idx);
 static bool read_faces_asc(FILE *f, TriMesh *mesh, int nfaces,
@@ -344,7 +350,7 @@ static bool read_ply(FILE *f, TriMesh *mesh)
 	bool binary = false, need_swap = false, float_color = false;
 	int result, nverts = 0, nfaces = 0, nstrips = 0, ngrid = 0;
 	int vert_len = 0, vert_pos = -1, vert_norm = -1;
-	int vert_color = -1, vert_conf = -1;
+	int vert_color = -1, vert_conf = -1,  vert_quality = -1;
 	int face_len = 0, face_count = -1, face_idx = -1;
 
 	// Read file format
@@ -418,6 +424,9 @@ static bool read_ply(FILE *f, TriMesh *mesh)
 		if (LINE_IS("property float confidence") ||
 		    LINE_IS("property float32 confidence"))
 			vert_conf = vert_len;
+		if (LINE_IS("property float quality") ||
+			LINE_IS("property float32 quality"))
+			vert_quality = vert_len;
 
 		if (!ply_property(buf, vert_len, binary))
 			return false;
@@ -510,12 +519,12 @@ static bool read_ply(FILE *f, TriMesh *mesh)
 	if (binary) {
 		if (!read_verts_bin(f, mesh, need_swap, nverts, vert_len,
 				    vert_pos, vert_norm, vert_color,
-				    float_color, vert_conf))
+				    float_color, vert_conf, vert_quality))
 			return false;
 	} else {
 		if (!read_verts_asc(f, mesh, nverts, vert_len,
 				    vert_pos, vert_norm, vert_color,
-				    float_color, vert_conf))
+				    float_color, vert_conf,vert_quality))
 			return false;
 	}
 
@@ -962,6 +971,121 @@ static bool read_verts_bin(FILE *f, TriMesh *mesh, bool &need_swap,
 	return true;
 }
 
+// Read nverts vertices from a binary file.
+// with vertex quality
+// vert_len = total length of a vertex record in bytes
+// vert_pos, vert_norm, vert_color, vert_conf =
+//   position of vertex coordinates / normals / color / confidence in record
+// need_swap = swap for opposite endianness
+// float_color = colors are 4-byte float * 3, vs 1-byte uchar * 3
+static bool read_verts_bin(FILE *f, TriMesh *mesh, bool &need_swap,
+	int nverts, int vert_len, int vert_pos, int vert_norm,
+	int vert_color, bool float_color, int vert_conf, int vert_quality)
+{
+	const int vert_size = 12;
+	const int norm_size = 12;
+	const int color_size = float_color ? 12 : 3;
+	const int conf_size = 4;
+	const int quality_size = 4;
+
+	if (nverts <= 0 || vert_len < 12 || vert_pos < 0)
+		return false;
+
+	int old_nverts = mesh->vertices.size();
+	int new_nverts = old_nverts + nverts;
+	mesh->vertices.resize(new_nverts);
+
+	bool have_norm = (vert_norm >= 0);
+	bool have_color = (vert_color >= 0);
+	bool have_conf = (vert_conf >= 0);
+	bool have_quality = (vert_quality >= 0);
+	if (have_norm)
+		mesh->normals.resize(new_nverts);
+	if (have_color)
+		mesh->colors.resize(new_nverts);
+	if (have_conf)
+		mesh->confidences.resize(new_nverts);
+	if (have_quality)
+		mesh->quality.resize(new_nverts);
+
+	unsigned char *buf = new unsigned char[vert_len];
+	COND_READ(true, buf[0], vert_len);
+
+	int i = old_nverts;
+	memcpy(&mesh->vertices[i][0], &buf[vert_pos], vert_size);
+	if (have_norm)
+		memcpy(&mesh->normals[i][0], &buf[vert_norm], norm_size);
+	if (have_color && float_color)
+		memcpy(&mesh->colors[i][0], &buf[vert_color], color_size);
+	if (have_color && !float_color)
+		mesh->colors[i] = Color(&buf[vert_color]);
+	if (have_conf)
+		memcpy(&mesh->confidences[i], &buf[vert_conf], conf_size);
+	if (have_quality)
+		memcpy(&mesh->quality[i], &buf[vert_quality], quality_size);
+
+	check_need_swap(mesh->vertices[i], need_swap);
+	if (need_swap) {
+		swap_float(mesh->vertices[i][0]);
+		swap_float(mesh->vertices[i][1]);
+		swap_float(mesh->vertices[i][2]);
+		if (have_norm) {
+			swap_float(mesh->normals[i][0]);
+			swap_float(mesh->normals[i][1]);
+			swap_float(mesh->normals[i][2]);
+		}
+		if (have_color && float_color) {
+			swap_float(mesh->colors[i][0]);
+			swap_float(mesh->colors[i][1]);
+			swap_float(mesh->colors[i][2]);
+		}
+		if (have_conf)
+			swap_float(mesh->confidences[i]);
+		if (have_conf)
+			swap_float(mesh->quality[i]);
+	}
+
+	dprintf("\n  Reading %d vertices... ", nverts);
+	if (vert_len == 12 && sizeof(point) == 12 && nverts > 1)
+		return slurp_verts_bin(f, mesh, need_swap, nverts);
+	while (++i < new_nverts) {
+		COND_READ(true, buf[0], vert_len);
+		memcpy(&mesh->vertices[i][0], &buf[vert_pos], vert_size);
+		if (have_norm)
+			memcpy(&mesh->normals[i][0], &buf[vert_norm], norm_size);
+		if (have_color && float_color)
+			memcpy(&mesh->colors[i][0], &buf[vert_color], color_size);
+		if (have_color && !float_color)
+			mesh->colors[i] = Color(&buf[vert_color]);
+		if (have_conf)
+			memcpy(&mesh->confidences[i], &buf[vert_conf], conf_size);
+		if (have_quality)
+			memcpy(&mesh->quality[i], &buf[vert_quality], quality_size);
+
+		if (need_swap) {
+			swap_float(mesh->vertices[i][0]);
+			swap_float(mesh->vertices[i][1]);
+			swap_float(mesh->vertices[i][2]);
+			if (have_norm) {
+				swap_float(mesh->normals[i][0]);
+				swap_float(mesh->normals[i][1]);
+				swap_float(mesh->normals[i][2]);
+			}
+			if (have_color && float_color) {
+				swap_float(mesh->colors[i][0]);
+				swap_float(mesh->colors[i][1]);
+				swap_float(mesh->colors[i][2]);
+			}
+			if (have_conf)
+				swap_float(mesh->confidences[i]);
+			if (have_conf)
+				swap_float(mesh->quality[i]);
+		}
+	}
+
+	return true;
+}
+
 
 // Optimized reader for the simple case of just vertices w/o other properties
 static bool slurp_verts_bin(FILE *f, TriMesh *mesh, bool need_swap, int nverts)
@@ -1034,6 +1158,81 @@ static bool read_verts_asc(FILE *f, TriMesh *mesh,
 				if (fscanf(f, "%f", &mesh->confidences[i]) != 1)
 					return false;
 			} else {
+				fscanf(f, " %1023s", buf);
+			}
+		}
+	}
+
+	return true;
+}
+
+// Read a bunch of vertices from an ASCII file
+//	with vertex quality
+// Parameters are as in read_verts_bin, but offsets are in
+// (white-space-separated) words, rather than in bytes
+static bool read_verts_asc(FILE *f, TriMesh *mesh,
+	int nverts, int vert_len, int vert_pos, int vert_norm,
+	int vert_color, bool float_color, int vert_conf , int vert_quality)
+{
+	if (nverts <= 0 || vert_len < 3 || vert_pos < 0)
+		return false;
+
+	int old_nverts = mesh->vertices.size();
+	int new_nverts = old_nverts + nverts;
+	mesh->vertices.resize(new_nverts);
+	if (vert_norm > 0)
+		mesh->normals.resize(new_nverts);
+	if (vert_color > 0)
+		mesh->colors.resize(new_nverts);
+	if (vert_conf > 0)
+		mesh->confidences.resize(new_nverts);
+	if(vert_quality >0)
+		mesh->quality.resize(new_nverts);
+
+	char buf[1024];
+	skip_comments(f);
+	dprintf("\n  Reading %d vertices... ", nverts);
+	for (int i = old_nverts; i < new_nverts; i++) {
+		for (int j = 0; j < vert_len; j++) {
+			if (j == vert_pos) {
+				if (fscanf(f, "%f %f %f",
+					&mesh->vertices[i][0],
+					&mesh->vertices[i][1],
+					&mesh->vertices[i][2]) != 3)
+					return false;
+				j += 2;
+			}
+			else if (j == vert_norm) {
+				if (fscanf(f, "%f %f %f",
+					&mesh->normals[i][0],
+					&mesh->normals[i][1],
+					&mesh->normals[i][2]) != 3)
+					return false;
+				j += 2;
+			}
+			else if (j == vert_color && float_color) {
+				float r, g, b;
+				if (fscanf(f, "%f %f %f", &r, &g, &b) != 3)
+					return false;
+				mesh->colors[i] = Color(r, g, b);
+				j += 2;
+			}
+			else if (j == vert_color && !float_color) {
+				int r, g, b;
+				if (fscanf(f, "%d %d %d", &r, &g, &b) != 3)
+					return false;
+				mesh->colors[i] = Color(r, g, b);
+				j += 2;
+			}
+			else if (j == vert_conf) {
+				if (fscanf(f, "%f", &mesh->confidences[i]) != 1)
+					return false;
+			}
+			else if (j == vert_quality) {
+				if (fscanf(f, "%f", &mesh->quality[i]) != 1)
+					return false;
+			}
+			else {
 				fscanf(f, " %1023s", buf);
 			}
 		}

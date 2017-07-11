@@ -60,7 +60,7 @@ namespace trimesh {
 			vector<pt_with_d> knn;
 		};
 
-		enum { MAX_PTS_PER_NODE = 1 };
+		enum { MAX_PTS_PER_NODE = 8 };
 
 
 		// The node itself

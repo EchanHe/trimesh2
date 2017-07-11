@@ -2,6 +2,8 @@
 #ifndef GEODESIC_ALGORITHM_DIJKSTRA_010506
 #define GEODESIC_ALGORITHM_DIJKSTRA_010506
 
+
+
 #include "geodesic_algorithm_graph_base.h"
 #include "geodesic_mesh_elements.h"
 #include <vector>

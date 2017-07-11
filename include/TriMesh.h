@@ -12,6 +12,7 @@ Class for triangle meshes.
 #include "Color.h"
 #include <vector>
 #include <string>
+#include<ctime>
 #ifndef M_PIf
 # define M_PIf 3.1415927f
 #endif
@@ -63,7 +64,8 @@ public:
 		STAT_RMS, STAT_MEDIAN, STAT_STDEV, STAT_TOTAL };
 	enum StatVal { STAT_VALENCE, STAT_FACEAREA, STAT_ANGLE,
 		STAT_DIHEDRAL, STAT_EDGELEN, STAT_X, STAT_Y, STAT_Z,
-	STAT_MEAN_CURV , STAT_GAUS_CURV};
+	STAT_MEAN_CURV , STAT_GAUS_CURV,
+	STAT_SDF};
 
 	//
 	// Constructor
@@ -110,6 +112,13 @@ public:
 	//shape diameter function
 	::std::vector<float> sdf;
 	::std::vector<float> sdf_brute;
+	::std::vector<float> quality;
+	//average geodesic distance
+	::std::vector<float> AGDs;
+
+	//possible landmarks
+	::std::vector<vec>landmarks;
+	::std::vector<int>landmarkID;
 
 	// Bounding structures
 	box bbox;
@@ -159,12 +168,16 @@ public:
 
 	void writeCurvature();
 	void remove_outlier(StatVal val);
+	void need_feature_points_curv_sdf();
 
+	void need_agd();
 
 	void need_sdf();
 	void need_sdf_brute();
+	void need_sdf_octree();
 	//template<class T>
 	void TriMesh::color_vertex(::std::vector<float> attri, bool optimized = true);
+	void TriMesh::color_vertex(::std::vector<int> index);
 
 
 	//

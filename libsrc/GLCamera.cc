@@ -404,7 +404,7 @@ void GLCamera::setupGL(const point &scene_center, float scene_size) const
 	glMatrixMode(GL_PROJECTION);
 	glLoadIdentity();
 	glFrustum(left, right, bottom, top, neardist, fardist);
-
+	//glFrustum(left, right, bottom, top, 0.001, 10000);
 	glMatrixMode(GL_MODELVIEW);
 	glLoadIdentity();
 	GLfloat light0_position[] = { lightdir[0], lightdir[1], lightdir[2], 0 };

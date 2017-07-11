@@ -1,10 +1,15 @@
 #include "TriMesh.h"
 #include "TriMesh_algo.h"
 #include "kdTree_face.h"
+#include "octree.h"
 #include <numeric>
 //#include "Vec.h"
 using namespace std;
 namespace trimesh {
+	const int CONE_ANGLE = 60;
+	const int RAYS_PER_ANGLE = 20;
+	const int ANGLE_INTERVALS = 4;
+
 	//rotation( vec dir, float angle, vec rotateAxis)
 	//Goal: return the dirction vector after rotation *angle along *rotateaxis
 	/*
@@ -60,26 +65,35 @@ namespace trimesh {
 		}
 		
 	}
-	void make_cone( vec origin, vec normal, vector<vec>& output) {
+	void make_cone( vec origin, vec dir, vector<vec>& output) {
 		output.clear();
-		float halfAngle = 60;
-		int totalRings = 20;
-		int intervals = 5;	
-		output.resize(totalRings*intervals);
+		//float halfAngle = 60;
+
+		//int totalRings = 20;
+		//int intervals = 5;	
+
+		output.resize(RAYS_PER_ANGLE*ANGLE_INTERVALS +1 );
 
 		//find perpendicular  vector as rotation axis
-		vec rotateAxis = vec(1, 1, (-normal[0] - normal[1]) / normal[2]);
-		normalize(rotateAxis);
 
+		vec rotateAxis = vec(1, 1, (-dir[0] - dir[1]) / dir[2]);
+		if (dir[2] == 0) {
+			rotateAxis = vec(0, 0, 1);
+		}
+		normalize(rotateAxis);
+		normalize(dir);
 		
-		for (int j = 0; j < intervals; j++) {
-			vec ray1 = rotation(normal, halfAngle-(20*j), rotateAxis);
-			for (int i = 0; i < totalRings; i++) {
-				vec rayI = rotation(ray1, 360 * i / totalRings, normal);
-				output[(j*totalRings)+i] = rayI;
+		for (int j = 0; j < ANGLE_INTERVALS; j++) {
+			vec ray1 = rotation(dir, CONE_ANGLE-(15*j), rotateAxis);
+			for (int i = 0; i < RAYS_PER_ANGLE; i++) {
+				vec rayI = rotation(ray1, 360 * i / RAYS_PER_ANGLE, dir);
+				output[(j*RAYS_PER_ANGLE)+i] = rayI;
 			}
 		}
+		output[output.size()-1] = dir;
 	}
+
+
 
 	//Goal: Calculate the distance
 	/*input:
@@ -126,13 +140,61 @@ namespace trimesh {
 	}
 
 	template < class T>
-	float sdf_stat(vector<T> input) {
+	float sdf_stat_mean(vector<T> input) {
 		float sum = std::accumulate(input.begin(), input.end(), 0.0f);
 		float mean = sum / input.size();
 		float sq_sum = std::inner_product(input.begin(), input.end(), input.begin(), 0.0);
 		float stdev = std::sqrt(sq_sum / input.size() - mean * mean);
 
 		return mean;
+	}
+
+	template < class T>
+	float sdf_stat_mean(vector<T> input , float median , float stdev) {
+		vector<T> new_input;
+		int n_stdev = 1;
+		float lower_threshold = median - stdev*n_stdev;
+		float upper_threshold = median + stdev*n_stdev;
+		for (int i = 0; i < input.size(); i++) {
+			if (input[i] >= lower_threshold && input[i] <= upper_threshold) {
+				new_input.push_back(input[i]);
+			}
+		}
+
+		float sum = std::accumulate(new_input.begin(), new_input.end(), 0.0f);
+		float mean = sum / new_input.size();
+		return mean;
+	}
+
+	template < class T>
+	float sdf_stat_stdev(vector<T> input) {
+		float sum = std::accumulate(input.begin(), input.end(), 0.0f);
+		float mean = sum / input.size();
+		float sq_sum = std::inner_product(input.begin(), input.end(), input.begin(), 0.0);
+		float stdev = std::sqrt(sq_sum / input.size() - mean * mean);
+
+		return stdev;
+	}
+
+	template < class T>
+	float sdf_stat_median(vector<T> vals) {
+		int n = vals.size();
+		if (n & 1) {
+			nth_element(vals.begin(),
+				vals.begin() + n / 2,
+				vals.end());
+			return vals[n / 2];
+		}
+		else {
+			nth_element(vals.begin(),
+				vals.begin() + n / 2 - 1,
+				vals.end());
+			float tmp = vals[n / 2 - 1];
+			nth_element(vals.begin(),
+				vals.begin() + n / 2,
+				vals.end());
+			return 0.5f * (tmp + vals[n / 2]);
+		}
 	}
 
 
@@ -142,7 +204,7 @@ namespace trimesh {
 		need_inwardNormals();
 		need_faceNormals();
 		need_faceMidPts();
-		std::cout << std::endl << "Budld kd tree: ";
+		std::cout << std::endl << "Build kd tree: ";
 		KDtreeFace *k = new KDtreeFace(faceMidPts);
 		std::cout << double(clock() - begin) / CLOCKS_PER_SEC << " s" << std::endl;
 		begin = clock();
@@ -167,21 +229,24 @@ namespace trimesh {
 			make_cone(vertex, inwardNormal, rays);
 		
 			
-			vector<float>distances;
-			distances.resize(rays.size());
-			for (int j = 0;  j < rays.size(); j++) {
-				const float* a = k->closest_to_ray(vertex, rays[j]);
-				if (a != NULL) {
-					vec intersect(a[0], a[1], a[2]);
-					distances[j] = len(intersect - vertex);
-				}
-				if (i % 10000 == 0&&i/10000!=0)
-				std::cout << "finish one "<<i << endl;
+			//vector<float>distances;
+			//distances.resize(rays.size());
+			//for (int j = 0;  j < rays.size(); j++) {
+			//	const float* a = k->closest_to_ray(vertex, rays[j]);
+			//	if (a != NULL) {
+			//		vec intersect(a[0], a[1], a[2]);
+			//		distances[j] = len(intersect - vertex);
+			//	}
+			//	if (i % 10000 == 0&&i/10000!=0)
+			//	std::cout << "finish one "<<i << endl;
+			//}
 
-
-
-			}
-			sdf[i] = sdf_stat(distances);
+			const float* a = k->closest_to_ray(vertex, inwardNormal);
+			vec intersect(a[0], a[1], a[2]);
+			sdf[i] = len(intersect - vertex);
+			//sdf[i] = sdf_stat_mean(distances);
+			if (i% (nv / 10)==0)
+				std::cout << "Finish "<< i / (nv / 10)<<" % of ht SDF" << std::endl;
 
 		}
 
@@ -197,57 +262,155 @@ namespace trimesh {
 			return;
 		sdf_brute.resize(vertices.size());
 
+		
+
 		int nv = vertices.size();
 		//nv = 1;
 		int nf = faces.size();
 
 		std::vector<vec> rays;
-
+		make_cone(vertices[8], inwardNormals[8], rays);
 		std::cout << std::endl << "computing the shape diameters using brute: ";
 		std::clock_t begin = clock();
 		//#pragma omp parallel for
+
+		Octree * octreeFace = new Octree(faces, vertices, faceNormals);
+		int diffCount = 0;
+		
+		for (int i = 0; i < nv; i++) {
+			//initialize the vertex, in normal and rays for SDF
+			vec inwardNormal = inwardNormals[i];
+			vec normal = normals[i];
+			vec vertex = vertices[i];
+			make_cone(vertex, inwardNormal, rays);
+
+			vector<float>distances;
+	//		distances.resize(rays.size());
+//#pragma omp parallel for		
+			for (int j = 0; j < rays.size(); j++) {
+				float minDist = 0;
+				int faceId = -1;
+				vec ray = rays[j];
+#pragma omp parallel for
+				for (int k = 0; k < nf; k++) { //iterate through faces
+					float angle = acos(normal ^ faceNormals[k])* 180.0 / M_PIf;
+					if (angle > 90) {
+
+						vec v1 = vertices[faces[k][0]]; vec v2 = vertices[faces[k][1]]; vec v3 = vertices[faces[k][2]];
+
+						float distance = triangle_inter(vertex, ray, v1, v2, v3);
+						if (distance != 0) {
+							if (minDist == 0) {
+								minDist = distance;
+								faceId = k;
+							}
+							else {
+								if (distance < minDist) {
+									minDist = distance;
+									faceId = k;
+								}
+							}
+						}
+					}
+				}
+				//float d_from_octree = octreeFace->intersect_face_from_raycast(vertex, ray, normal).closest_d;
+				//if (minDist != d_from_octree) {
+				//	diffCount++;
+				//}
+
+				if (minDist != 0 || faceId !=-1) {//--If there is a intersect between a face and the ray
+					//--check the intersect is with the inward faces
+						distances.push_back(minDist);
+				//	minDist = minDist;
+					//distances[j] = minDist;
+						//int ring = (j) / RAYS_PER_ANGLE;
+						//if (j == rays.size() - 1)
+						//	distances.push_back(minDist);
+						////distances[j] = minDist;
+						//else
+						//	distances.push_back(minDist);// ((ANGLE_INTERVALS - ring) * 2));
+						//	//distances[j] = minDist / ((ANGLE_INTERVALS - ring) * 2);
+				}
+
+
+			}
+			if (distances.size() <= 10) {
+				cout << "The vertices " << i;
+				cout << "Have " << distances.size() << " intersect"<<endl;
+				
+			}
+
+			float median = sdf_stat_median(distances);
+			float stdev = sdf_stat_stdev(distances);
+			
+			sdf_brute[i] = sdf_stat_mean(distances, median , stdev);
+
+		}
+		//cout << "The different percentatge:" << float(diffCount) / (nv * (RAYS_PER_ANGLE*ANGLE_INTERVALS+1))<<endl;
+		//std::cout << double(clock() - begin) / CLOCKS_PER_SEC << " s" << std::endl;
+	}
+
+
+
+	void TriMesh::need_sdf_octree() {
+		if (sdf.size() == vertices.size())
+			return;
+		int nv = vertices.size();
+		int nf = faces.size();
+
+		sdf.resize(vertices.size());
+		std::clock_t begin = clock();
+		need_normals();
+		need_inwardNormals();
+		need_faceNormals();
+		need_faceMidPts();
+		//using the Vertices to build the Octree
+		//Octree *k = new Octree(vertices);
+		Octree * octreeFace = new Octree(faces, vertices, faceNormals);
+
+		begin = clock();
+
+
+		std::vector<vec> rays;
+
+		std::cout << std::endl << "computing the shape diameters using octree tree: ";
 
 		for (int i = 0; i < nv; i++) {
 			//initialize the vertex, in normal and rays for SDF
 			vec inwardNormal = inwardNormals[i];
 			vec vertex = vertices[i];
+			vec normal = normals[i];
 			make_cone(vertex, inwardNormal, rays);
+
 
 			vector<float>distances;
 			distances.resize(rays.size());
-			for (int j = 0; j < rays.size(); j++) {
-				float minDist = 0;
-				int faceId = 0;
-				vec ray = rays[j];
-				for (int j = 0; j < nf; j++) {
-					vec v1 = vertices[faces[j][0]]; vec v2 = vertices[faces[j][1]]; vec v3 = vertices[faces[j][2]];
-
-					float distance = triangle_inter(vertex, ray, v1, v2, v3);
-					if (distance != 0) {
-						if (minDist == 0) {
-							minDist = distance;
-							faceId = j;
-						}
-						else {
-							if (distance < minDist) {
-								minDist = distance;
-								faceId = j;
-							}
-						}
-					}
-				}
-				distances[j] = minDist;
+			//float d_from_inNormal = octreeFace->intersect_face_from_raycast(vertex, inwardNormal, normal).closest_d;
+			//bool no_parallel_axis = (inwardNormal[0] != 0 && (inwardNormal[1] != 0 || inwardNormal[2] != 0) )||
+			//	(inwardNormal[1] != 0 && (inwardNormal[0] != 0 || inwardNormal[2] != 0)) ||
+			//	(inwardNormal[2] != 0 && (inwardNormal[1] != 0 || inwardNormal[0] != 0));
+			//if (d_from_inNormal == 0 && no_parallel_axis) {
+			//	cout << "vertices " << i<<" ";
+			//	cout << inwardNormal << endl;
+			//}
+#pragma omp parallel for
+			for (int j = 0;  j < rays.size(); j++) {
+				//Octree::Traversal_Info  info = k->find_cube_from_raycast(vertex, rays[j]);
+				float d_from_octree = octreeFace->intersect_face_from_raycast(vertex, rays[j], normal).closest_d;
+				distances[j] = d_from_octree;
 			}
-			sdf_brute[i] = sdf_stat(distances);
-
-
+			//const float* a = 
+		//	vec intersect(a[0], a[1], a[2]);
+			float median = sdf_stat_median(distances);
+			float stdev = sdf_stat_stdev(distances);
+			sdf[i] = sdf_stat_mean(distances);
+			if (i % (nv / 100) == 0)
+				std::cout << "Finish " << i / (nv / 100) << "% of ht SDF" << std::endl;
 
 		}
 
 		std::cout << double(clock() - begin) / CLOCKS_PER_SEC << " s" << std::endl;
 	}
-
-
 }//end of namespace
 
 /*

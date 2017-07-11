@@ -27,8 +27,12 @@ void TriMesh::need_normals()
 
 	// Nothing to do if we already have normals
 	int nv = vertices.size();
-	if (int(normals.size()) == nv)
+	if (int(normals.size()) == nv) {
+		#pragma omp parallel for
+		for (int i = 0; i < nv; i++)
+			normalize(normals[i]);
 		return;
+	}
 
 	dprintf("Computing normals... ");
 	normals.clear();
@@ -127,6 +131,7 @@ void TriMesh::need_inwardNormals() {
 
 	for (int i = 0; i < nv; i++) {
 		inwardNormals[i] = -normals[i];
+		normalize(inwardNormals[i]);
 	}
 
 }
@@ -140,13 +145,14 @@ void TriMesh::need_faceNormals() {
 
 	faceNormals.resize(nf);
 	for (int i=0 ; i<nf ; i++){
-		vec e[3] = { vertices[faces[i][2]] - vertices[faces[i][1]],
-			vertices[faces[i][0]] - vertices[faces[i][2]],
-			vertices[faces[i][1]] - vertices[faces[i][0]] };
+		faceNormals[i] = normalize(trinorm(i));
+		//vec e[3] = { vertices[faces[i][2]] - vertices[faces[i][1]],
+		//	vertices[faces[i][0]] - vertices[faces[i][2]],
+		//	vertices[faces[i][1]] - vertices[faces[i][0]] };
 
-		faceNormals[i] = -e[0] CROSS e[1];
-		if (len((e[0] CROSS -e[2])- (e[1] CROSS -e[0]))>0.00001)
-			std::cout << "larger";
+		//faceNormals[i] = -e[0] CROSS e[1];
+		//if (len((e[0] CROSS -e[2])- (e[1] CROSS -e[0]))>0.00001)
+		//	std::cout << "larger";
 	}
 }
 

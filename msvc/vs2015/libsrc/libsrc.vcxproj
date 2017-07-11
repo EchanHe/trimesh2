@@ -142,8 +142,7 @@
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <AdditionalIncludeDirectories>D:\api\boost_1_64_0;..\..\..\include</AdditionalIncludeDirectories>
-      <OpenMPSupport>
-      </OpenMPSupport>
+      <OpenMPSupport>true</OpenMPSupport>
       <PreprocessorDefinitions>_CRT_SECURE_NO_WARNINGS
 ;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <InlineFunctionExpansion>AnySuitable</InlineFunctionExpansion>
@@ -173,6 +172,7 @@
     <ClInclude Include="..\..\..\include\lineqn.h" />
     <ClInclude Include="..\..\..\include\mempool.h" />
     <ClInclude Include="..\..\..\include\noise3d.h" />
+    <ClInclude Include="..\..\..\include\octree.h" />
     <ClInclude Include="..\..\..\include\strutil.h" />
     <ClInclude Include="..\..\..\include\timestamp.h" />
     <ClInclude Include="..\..\..\include\TriMesh.h" />
@@ -191,6 +191,7 @@
     <ClCompile Include="..\..\..\libsrc\KDtree.cc" />
     <ClCompile Include="..\..\..\libsrc\kdTree_face.cpp" />
     <ClCompile Include="..\..\..\libsrc\lmsmooth.cc" />
+    <ClCompile Include="..\..\..\libsrc\octree.cpp" />
     <ClCompile Include="..\..\..\libsrc\overlap.cc" />
     <ClCompile Include="..\..\..\libsrc\remove.cc" />
     <ClCompile Include="..\..\..\libsrc\reorder_verts.cc" />
