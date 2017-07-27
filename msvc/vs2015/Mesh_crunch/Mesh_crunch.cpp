@@ -14,6 +14,7 @@ method of vertex collapse.
 
 #include "TriMesh.h"
 #include "TriMesh_algo.h"
+#include "octree.h"
 #include <cstdio>
 #include <cstdlib>
 using namespace std;
@@ -134,9 +135,11 @@ void usage(const char *myname)
 
 int main(int argc, char *argv[])
 {
-	if (argc < 3)
-		usage(argv[0]);
-	TriMesh *in = TriMesh::read(argv[1]);
+	//if (argc < 3)
+	//	usage(argv[0]);
+
+	const char * filename = "..\\..\\..\\data\\bird_one_component_sdf.ply";
+	TriMesh *in = TriMesh::read(filename);
 	if (!in)
 		usage(argv[0]);
 
@@ -149,6 +152,8 @@ int main(int argc, char *argv[])
 	float voxelsize = 2.0f * in->feature_size();
 	crunch(in, out, voxelsize);
 	
+	out->need_sdf_octree();
+
 	lmsmooth(out, 20);
 
 	if (had_tstrips)
@@ -156,7 +161,7 @@ int main(int argc, char *argv[])
 	out->write(argv[2]);
 
 
-	vector<int> comp;
+	std::vector<int> comp;
 	vector<int> compSizes;
 	find_comps(in, comp, compSizes);
 	cout << compSizes.size();

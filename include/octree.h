@@ -13,8 +13,6 @@ namespace trimesh {
 	private:
 		//class Node;
 		//Node *root;
-		void build(const float *ptlist, size_t n);
-
 		//Build the octree with vertices as input
 		void build(std::vector<vec> pts, size_t n);
 		//Build the octree with faces as input
@@ -24,6 +22,7 @@ namespace trimesh {
 		Node *root;
 		struct Traversal_Info {
 			const float *origin_p, *origin_dir;
+			vec origin_vec_p, origin_vec_dir;
 			vec closest_Pt;
 			vec max;
 			vec min;
@@ -38,13 +37,19 @@ namespace trimesh {
 			std::vector<vec> bBox_mins;
 			vec vertex;
 			vec ray;
-			float origin_t;
+			//float origin_t;
+			int cal_count = 0;// the times for counting.
+			int equal_max_faces_count = 0;
+			int leaves_count = 0;
+			int branch_count = 0;
 			//vector<pt_with_d> knn;
 		};
+		
+		const static bool interNode = true;
 
 		const static int MAX_PTS_PER_NODE=10;
 
-		const static int MAX_FACES_PER_NODE = 10;
+		const static int MAX_FACES_PER_NODE = 2;
 
 		const static int MIN_DIST_INIT = 1000000;
 		// Compatibility function for closest-compatible-point searches
@@ -54,11 +59,6 @@ namespace trimesh {
 			virtual ~CompatFunc() {}  // To make the compiler shut up
 		};
 
-		// Constructor from an array of points
-		Octree(const float *ptlist, size_t n)
-		{
-			build(ptlist, n);
-		}
 
 		// Constructor from a vector of points---------------
 		template <class T> Octree(const ::std::vector<T> &v ,int pts_per_node)

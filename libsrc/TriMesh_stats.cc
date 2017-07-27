@@ -277,14 +277,19 @@ void TriMesh::need_feature_points_curv_sdf()
 	float gaus_curv_lower_thre = temp[1-portion];
 	//calculate SDF
 	//if (sdf.size() != 0) {
-		float mean_sdf = stat(STAT_MEAN, STAT_SDF);
-		float std_sdf = stat(STAT_STDEV, STAT_SDF);
-		float median_sdf = stat(STAT_MEDIAN, STAT_SDF);
-		float max_sdf = stat(STAT_MAX, STAT_SDF);
-		float min_sdf = stat(STAT_MIN, STAT_SDF);
-		temp = sdf;
-		std::sort(temp.begin(), temp.end());
-		float sdf_thre = temp[portion];
+	float percent2 = 0.95;
+	int portion2 = (int)(percent2*nv);
+
+
+	float mean_sdf = stat(STAT_MEAN, STAT_SDF);
+	float std_sdf = stat(STAT_STDEV, STAT_SDF);
+	float median_sdf = stat(STAT_MEDIAN, STAT_SDF);
+	float max_sdf = stat(STAT_MAX, STAT_SDF);
+	float min_sdf = stat(STAT_MIN, STAT_SDF);
+	temp = sdf;
+	std::sort(temp.begin(), temp.end());
+	float sdf_upper_thre = temp[portion2];
+	float sdf_lower_thre = temp[1- portion2];
 	//}
 
 
@@ -306,17 +311,125 @@ void TriMesh::need_feature_points_curv_sdf()
 		//	(sdf[i]>sdf_thre);
 
 		bool isPeak = (mean_curv[i] < 0 && mean_curv[i] < mean_curv_lower_thre) &&
-			(gaus_curv[i] > 0 && gaus_curv[i] > gaus_curv_upper_thre) &&
-			(sdf[i]>sdf_thre);
+			(gaus_curv[i] > 0 && gaus_curv[i] > gaus_curv_upper_thre);
+		//&&(sdf[i]>sdf_upper_thre);
 
+		bool isNarrow = sdf[i] < sdf_lower_thre;
+		bool isThick = sdf[i] > sdf_upper_thre;
 		bool isRavine = (mean_curv[i] > 0 && mean_curv[i] >mean_curv_upper_thre) &&
 			(gaus_curv[i] <=0 && gaus_curv[i]<gaus_curv_lower_thre);
 
-		if (isPeak) {
+		//bool isBeak = sdf[i]<mean_sdf + 2*std_sdf && sdf[i]> mean_sdf - 2*std_sdf;
+		bool isFeather = (sdf[i] < sdf_lower_thre && isPeak) && (sdf[i] > sdf_upper_thre && isRavine);
+
+
+		//if (isPeak) {
+		//	results.push_back(vertices[i]);
+		//	index.push_back(i);
+		//}
+			
+		if (isThick && isPeak) {
 			results.push_back(vertices[i]);
 			index.push_back(i);
 		}
-			
+
+	}
+
+	landmarks = results;
+	landmarkID = index;
+
+	cout << endl << "Find " << landmarks.size() << " feature points using the " << 100 * percent << " % of the SDF, Mean Curv and Gaussian Curv" << endl;
+	return;
+
+}
+
+void TriMesh::need_feature_points_curv_sdf_beak()
+{
+	if (sdf.size() == 0 || mean_curv.size() == 0 || gaus_curv.size() == 0) {
+		return;
+	}
+
+	float stdevN = 1;
+	int nv = vertices.size();
+	//index.clear();
+	vector<int> index;
+
+	std::vector<float> temp;
+	float percent = 0.85;
+	int portion = (int)(percent*nv);
+
+	//calculate mean curvature
+	float mean_meanCurv = stat(STAT_MEAN, STAT_MEAN_CURV);
+	float std_meanCurv = stat(STAT_STDEV, STAT_MEAN_CURV);
+	temp = mean_curv;
+	std::sort(temp.begin(), temp.end());
+	float mean_curv_lower_thre = temp[1 - portion];
+	float mean_curv_upper_thre = temp[portion];
+	//calculate gaussian curvature
+	float mean_gausCurv = stat(STAT_MEAN, STAT_GAUS_CURV);
+	float std_gausCurv = stat(STAT_STDEV, STAT_GAUS_CURV);
+	temp = gaus_curv;
+	std::sort(temp.begin(), temp.end());
+	float gaus_curv_upper_thre = temp[portion];
+	float gaus_curv_lower_thre = temp[1 - portion];
+	//calculate SDF
+	//if (sdf.size() != 0) {
+	float percent2 = 0.8;
+	int portion2 = (int)(percent2*nv);
+
+
+	float mean_sdf = stat(STAT_MEAN, STAT_SDF);
+	float std_sdf = stat(STAT_STDEV, STAT_SDF);
+	float median_sdf = stat(STAT_MEDIAN, STAT_SDF);
+	float max_sdf = stat(STAT_MAX, STAT_SDF);
+	float min_sdf = stat(STAT_MIN, STAT_SDF);
+	temp = sdf;
+	std::sort(temp.begin(), temp.end());
+	float sdf_upper_thre = temp[portion2];
+	float sdf_lower_thre = temp[1 - portion2];
+	//}
+
+
+	float min_meanCurv = mean_meanCurv - stdevN*std_meanCurv;
+	float max_meanCurv = mean_meanCurv + stdevN*std_meanCurv;
+
+	float min_gausCurv = mean_gausCurv - stdevN*std_gausCurv;
+	float max_gausCurv = mean_gausCurv + stdevN*std_gausCurv;
+
+	/*float min_sdf = mean_sdf - stdevN*std_sdf;
+	float max_sdf = mean_sdf + stdevN*std_sdf;*/
+
+
+	std::vector<vec> results;
+	for (int i = 0; i < nv; i++) {
+
+		//bool isPeak = (mean_curv[i] < 0 && mean_curv[i] < min_meanCurv) &&
+		//	(gaus_curv[i] > 0 && gaus_curv[i] > max_gausCurv) &&
+		//	(sdf[i]>sdf_thre);
+
+		bool isPeak = (mean_curv[i] < 0 && mean_curv[i] < mean_curv_lower_thre) &&
+			(gaus_curv[i] > 0 && gaus_curv[i] > gaus_curv_upper_thre);
+		//&&(sdf[i]>sdf_upper_thre);
+
+		bool isNarrow = sdf[i] < sdf_lower_thre;
+		bool isThick = sdf[i] > sdf_upper_thre;
+		bool isRavine = (mean_curv[i] > 0 && mean_curv[i] >mean_curv_upper_thre) &&
+			(gaus_curv[i] <= 0 && gaus_curv[i]<gaus_curv_lower_thre);
+
+		//bool isBeak = sdf[i]<mean_sdf + 2*std_sdf && sdf[i]> mean_sdf - 2*std_sdf;
+		bool isFeather = (sdf[i] < sdf_lower_thre && isPeak) && (sdf[i] > sdf_upper_thre && isRavine);
+
+
+		//if (isPeak) {
+		//	results.push_back(vertices[i]);
+		//	index.push_back(i);
+		//}
+
+		if (isRavine && !isFeather) {
+			results.push_back(vertices[i]);
+			index.push_back(i);
+		}
+
 	}
 
 	landmarks = results;

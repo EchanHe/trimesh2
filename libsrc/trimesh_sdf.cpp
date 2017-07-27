@@ -50,21 +50,6 @@ namespace trimesh {
 	rings:		rays on
 	v1,v2,v3:	points of the face
 	*/
-	inline void make_cone(float halfAngle, int rings, int intervals,vec origin,vec normal, vector<vec>& output) {
-		output.resize(rings);
-
-		//find perpendicular  vector as rotation axis
-		vec rotateAxis = vec(1, 1, (-normal[0] - normal[1]) / normal[2]);
-		normalize(rotateAxis);
-
-		vec ray1 = rotation(normal, halfAngle, rotateAxis);
-
-		for (int i = 0; i < rings; i++) {
-			vec rayI = rotation(ray1, 360*i/rings, normal);
-			output[i] = rayI;
-		}
-		
-	}
 	void make_cone( vec origin, vec dir, vector<vec>& output) {
 		output.clear();
 		//float halfAngle = 60;
@@ -197,7 +182,7 @@ namespace trimesh {
 		}
 	}
 
-
+	//---------function for sdf-------------------------
 	void TriMesh::need_sdf() {
 		std::clock_t begin = clock();
 		need_normals();
@@ -274,10 +259,10 @@ namespace trimesh {
 		std::clock_t begin = clock();
 		//#pragma omp parallel for
 
-		Octree * octreeFace = new Octree(faces, vertices, faceNormals);
+		//Octree * octreeFace = new Octree(faces, vertices, faceNormals);
 		int diffCount = 0;
 		
-		for (int i = 0; i < nv; i++) {
+		for (int i = 82; i < nv; i++) {
 			//initialize the vertex, in normal and rays for SDF
 			vec inwardNormal = inwardNormals[i];
 			vec normal = normals[i];
@@ -291,7 +276,7 @@ namespace trimesh {
 				float minDist = 0;
 				int faceId = -1;
 				vec ray = rays[j];
-#pragma omp parallel for
+//#pragma omp parallel for
 				for (int k = 0; k < nf; k++) { //iterate through faces
 					float angle = acos(normal ^ faceNormals[k])* 180.0 / M_PIf;
 					if (angle > 90) {
@@ -344,13 +329,63 @@ namespace trimesh {
 			float stdev = sdf_stat_stdev(distances);
 			
 			sdf_brute[i] = sdf_stat_mean(distances, median , stdev);
-
+			if (i % (nv / 10) == 0)
+				std::cout << "Finish " << i / (nv / 10) << "0% of ht SDF" << std::endl;
 		}
 		//cout << "The different percentatge:" << float(diffCount) / (nv * (RAYS_PER_ANGLE*ANGLE_INTERVALS+1))<<endl;
-		//std::cout << double(clock() - begin) / CLOCKS_PER_SEC << " s" << std::endl;
+		std::cout << double(clock() - begin) / CLOCKS_PER_SEC << " s" << std::endl;
 	}
 
+	void TriMesh::need_sdf_from_simple(TriMesh *simple) {
+		if (sdf.size() == vertices.size())
+			return;
+		int nv = vertices.size();
+		int nf = faces.size();
 
+		sdf.resize(vertices.size());
+		std::clock_t begin = clock();
+		need_normals();
+		need_inwardNormals();
+		need_faceNormals();
+		need_faceMidPts();
+		//using the Vertices to build the Octree
+		//Octree *k = new Octree(vertices);
+		Octree * octreeFace = new Octree(simple->faces, simple->vertices, simple->faceNormals);
+
+		begin = clock();
+		std::vector<vec> rays;
+		std::cout << std::endl << "computing the shape diameters using octree tree: ";
+
+		for (int i = 0; i < nv; i++) {
+			//---initialize the vertex, in normal and rays for SDF
+			vec inwardNormal = inwardNormals[i];
+			vec vertex = vertices[i];
+			vec normal = normals[i];
+			make_cone(vertex, inwardNormal, rays);
+
+
+			vector<float>distances;
+			//distances.resize(rays.size());
+			distances.clear();
+			for (int j = 0; j < rays.size(); j++) {
+				//Octree::Traversal_Info  info = k->find_cube_from_raycast(vertex, rays[j]);
+				float d_from_octree = octreeFace->intersect_face_from_raycast(vertex, rays[j], normal).closest_d;
+				if (d_from_octree != 0)
+					distances.push_back(d_from_octree);
+				//distances[j] = d_from_octree;
+			}
+			//const float* a = 
+			//	vec intersect(a[0], a[1], a[2]);
+			float median = sdf_stat_median(distances);
+			float stdev = sdf_stat_stdev(distances);
+			//sdf[i] = sdf_stat_mean(distances);
+			sdf[i] = sdf_stat_mean(distances, median, stdev);
+			if (i % (nv / 100) == 0)
+				std::cout << "Finish " << i / (nv / 100) << "% of ht SDF" << std::endl;
+		}
+
+		std::cout << double(clock() - begin) / CLOCKS_PER_SEC << " s" << std::endl;
+	}
 
 	void TriMesh::need_sdf_octree() {
 		if (sdf.size() == vertices.size())
@@ -367,16 +402,14 @@ namespace trimesh {
 		//using the Vertices to build the Octree
 		//Octree *k = new Octree(vertices);
 		Octree * octreeFace = new Octree(faces, vertices, faceNormals);
-
+		Octree::Traversal_Info info = octreeFace->find_all_leaves();
+		cout << "branch, leaves, correct size leaves :" << info.branch_count << " " << info.leaves_count << " " << info.equal_max_faces_count << endl;
 		begin = clock();
-
-
 		std::vector<vec> rays;
-
 		std::cout << std::endl << "computing the shape diameters using octree tree: ";
-
+		int cal_count=0;
 		for (int i = 0; i < nv; i++) {
-			//initialize the vertex, in normal and rays for SDF
+			//---initialize the vertex, in normal and rays for SDF
 			vec inwardNormal = inwardNormals[i];
 			vec vertex = vertices[i];
 			vec normal = normals[i];
@@ -384,33 +417,71 @@ namespace trimesh {
 
 
 			vector<float>distances;
-			distances.resize(rays.size());
-			//float d_from_inNormal = octreeFace->intersect_face_from_raycast(vertex, inwardNormal, normal).closest_d;
-			//bool no_parallel_axis = (inwardNormal[0] != 0 && (inwardNormal[1] != 0 || inwardNormal[2] != 0) )||
-			//	(inwardNormal[1] != 0 && (inwardNormal[0] != 0 || inwardNormal[2] != 0)) ||
-			//	(inwardNormal[2] != 0 && (inwardNormal[1] != 0 || inwardNormal[0] != 0));
-			//if (d_from_inNormal == 0 && no_parallel_axis) {
-			//	cout << "vertices " << i<<" ";
-			//	cout << inwardNormal << endl;
-			//}
-#pragma omp parallel for
+			//distances.resize(rays.size());
+			distances.clear();
 			for (int j = 0;  j < rays.size(); j++) {
 				//Octree::Traversal_Info  info = k->find_cube_from_raycast(vertex, rays[j]);
-				float d_from_octree = octreeFace->intersect_face_from_raycast(vertex, rays[j], normal).closest_d;
-				distances[j] = d_from_octree;
+				Octree::Traversal_Info info = octreeFace->intersect_face_from_raycast(vertex, rays[j], normal);
+				float d_from_octree = info.closest_d;
+				cal_count += info.cal_count;
+				if (d_from_octree != 0)
+					distances.push_back(d_from_octree);
+					//distances[j] = d_from_octree;
 			}
 			//const float* a = 
 		//	vec intersect(a[0], a[1], a[2]);
 			float median = sdf_stat_median(distances);
 			float stdev = sdf_stat_stdev(distances);
-			sdf[i] = sdf_stat_mean(distances);
-			if (i % (nv / 100) == 0)
-				std::cout << "Finish " << i / (nv / 100) << "% of ht SDF" << std::endl;
-
+			//sdf[i] = sdf_stat_mean(distances);
+			sdf[i] = sdf_stat_mean(distances, median, stdev);
+			if (i % (nv / 10) == 0)
+				std::cout << "Finish " << i / (nv / 10) << "0% of ht SDF" << std::endl;
 		}
-
 		std::cout << double(clock() - begin) / CLOCKS_PER_SEC << " s" << std::endl;
+	//	std::cout << "The brute force calculation times: "<<nv*nf*81<<endl;
+		std::cout << "The faces traverse per ray and vertices " << cal_count/(nv*81);
+
 	}
+
+	void TriMesh::compare_sdfs()
+	{
+		int decimal = 3;
+		if (sdf.size() == 0 || sdf_brute.size() == 0) {
+			need_sdf_octree();
+			need_sdf_brute();
+		}
+		int count = 0;
+		for (int i = 0; i < sdf.size(); i++) {
+			float divider = 10 ^ decimal;
+			float round_sdf = roundf(sdf[i] * divider) / divider;
+			float round_sdf_brute = roundf(sdf_brute[i] * divider) / divider;
+			if (round_sdf != round_sdf_brute)
+				count++;
+		}
+		cout << "The different percent SDF between brute force and octree are: " << float(count )/ sdf.size()<<endl;
+
+
+	}
+
+	void TriMesh::writeSDF() {
+		std::cout << "Writing curvature to sdf.csv" << std::endl;
+		std::ofstream file;
+		file.open("sdf.csv");
+		file << "sdf" << "\n";
+		for (int i = 0; i < sdf.size(); i++) {
+			file << sdf[i] << "\n";
+		}
+		file.close();
+
+		file.open("sdf_brute.csv");
+		file << "sdf_brute" << "\n";
+		for (int i = 0; i < sdf.size(); i++) {
+			file << sdf_brute[i] << "\n";
+		}
+		file.close();
+	}
+
+
 }//end of namespace
 
 /*

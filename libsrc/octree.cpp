@@ -112,7 +112,7 @@ namespace trimesh {
 		//return the next node ID using current Node ID and its t_i1
 		//The index should be 1-7. The 8 means no more node is interacted.
 		int index = std::min_element(t_i1.begin(), t_i1.end()) - t_i1.begin();
-
+	
 		switch (index) {
 		case 0: {
 			switch (current_nodeID) {
@@ -202,12 +202,9 @@ namespace trimesh {
 
 		//member function
 		Node() {  };
-		Node(vector<vec> pts, int n);
-		void box_of_point(Octree::Traversal_Info & ti) const;
+
 		Node(vector<vec> pts, int n , float xmax, float ymax , float zmax , float xmin , float ymin , float zmin);
-		Node(vector<vec> facesPt1, vector<vec> facesPt2, vector<vec> facesPt3, vec centroid, float edgeLen);
-		
-		Node(vector<vector<vec>> facesPts , vec centroid, float edgeLen , std::vector<vec> fNormals);
+		Node(vector<vector<vec>> facesPts , vec centroid, float edgeLen , std::vector<vec> fNormals , Node* father);
 		Node(vector<vector<vec>> facesPts, vector<int> facesIDs, vec centroid, float edgeLen, std::vector<vec> fNormals);
 
 		~Node();
@@ -235,42 +232,49 @@ namespace trimesh {
 				info.bBox_maxs.push_back(bBox.max);
 				info.bBox_mins.push_back(bBox.min);
 				//cout << "reach the leaf";
+				if (nFaces <= MAX_FACES_PER_NODE)
+					info.equal_max_faces_count++;
+				info.leaves_count++;
 				return;
 			}
-
+			if (has_faces_branch) {
+				info.branch_count++;
+			}
 			for (int i = 0; i < 8; i++) {
 				children[i]->traverse_all_leaves(info);
 			}
 		}
 
-		void ray_crossing_octants(vector<float> t_i0 , vector<float> t_i1,Traversal_Info &info) {
-			float t1_min = *std::min_element(t_i1.begin(), t_i1.end());
-			float t0_max = *std::max_element(t_i0.begin(), t_i0.begin());
 
-			if (isEmpty)
-				return;
+
+		void ray_crossing_octants(vector<float> t_i0 , vector<float> t_i1,Traversal_Info &info) {
+			//The first distance calculated is the closest distance
 			if (info.closest_d != MIN_DIST_INIT)
 				return;
-			//is leaf 
-			//if (isLeaf) {
-			//	info.bBox_maxs.push_back(bBox.max);
-			//	info.bBox_mins.push_back(bBox.min);
-			//	//cout << "reach the leaf";
-			//}
-			//&& t1_min<info.origin_t
-			//bool origin_ray_not_in_node = t1_min >= info.origin_t && info.origin_t >= t0_max;
-			if (t1_min < info.origin_t) {
+			//--calculate the origin t1s and the min t1 for exit plane 
+			vec originV = vec(info.origin_p[0], info.origin_p[1], info.origin_p[2]);
+			vec originRay = vec(info.origin_dir[0], info.origin_dir[1], info.origin_dir[2]);
+			vector<float> t_new_i1(3);
+			for (int i = 0; i < 3; i++) {
+				if(originRay[i]<0)
+					t_new_i1[i] = (this->bBox.min[i] - originV[i]) / originRay[i];
+				else
+					t_new_i1[i] = (this->bBox.max[i] - originV[i]) / originRay[i];
+			}
+			float t1_new_min = *std::min_element(t_new_i1.begin(), t_new_i1.end());
+			//Use minimum t1 to make sure no octant behind the origin points of the ray.
+			if (t1_new_min <= 0) {
 				return;
 			}
-
-
-			if (isLeaf || has_faces_branch ) {
-				info.bBox_maxs.push_back(bBox.max);
-				info.bBox_mins.push_back(bBox.min);
-				this->cal_sdf_on_nodes(info);
-			}
-			if (isLeaf)
+			if (isEmpty)
 				return;
+
+			if (isLeaf) {
+				//info.bBox_maxs.push_back(bBox.max);
+				//info.bBox_mins.push_back(bBox.min);
+				this->cal_sdf_on_node(info);
+				return;
+			}		
 			//if has branch:
 
 
@@ -281,12 +285,13 @@ namespace trimesh {
 			}
 			
 			int currentNode_id = first_sub_node(t_i0, t_i_m);
-
+			int first_node_id = currentNode_id;
 			unsigned char negative_convert_bits = info.ray_neg_convert_bits;
 		//	std::cout<<(currentNode_id ^ negative_convert_bits);
 			//cout << "the Number of cubes intercted: " << (currentNode_id ^ negative_convert_bits) << endl;
 			vector<float> t_i1_sub_node(3);
 			vector<float> t_i0_sub_node(3);
+			bool checked = false;
 			do {
 				switch (currentNode_id) {
 				case 0: {
@@ -333,18 +338,35 @@ namespace trimesh {
 				}
 				children[currentNode_id ^ negative_convert_bits]->ray_crossing_octants(t_i0_sub_node, t_i1_sub_node, info);
 				currentNode_id = next_sub_node(currentNode_id, t_i1_sub_node);
-
+				if ( currentNode_id<8 && !checked) {
+					bool a = check_which_first(info, std::min_element(t_i1_sub_node.begin(), t_i1_sub_node.end()) - t_i1_sub_node.begin());
+				//	cout << "exit plant" << std::min_element(t_i1_sub_node.begin(), t_i1_sub_node.end()) - t_i1_sub_node.begin() << endl;
+					//cout << "pass " << a << endl;;
+					//
+					if (a && has_faces_branch && info.closest_d == MIN_DIST_INIT) {
+						this->cal_sdf_on_node(info);
+						checked = true;
+					}
+				}
+				//if (count == 1 && info.closest_d == MIN_DIST_INIT) {
+				//	if (has_faces_branch) {
+				//		//info.bBox_maxs.push_back(bBox.max);
+				//		//info.bBox_mins.push_back(bBox.min);
+				//		this->cal_sdf_on_nodes(info);
+				//	}
+				//}
+		
 			} while (currentNode_id < 8 && currentNode_id >= 0);
 
 		}
 		//static float distance_ray_face(vec p, vec dir, vec pNormal,vec node_faceNormal, vector<vec> pts );
 
-		void cal_sdf_on_nodes(Traversal_Info &info) {
+		void cal_sdf_on_node(Traversal_Info &info) {
 			vec vNormal = vec(info.ptNormal[0], info.ptNormal[1], info.ptNormal[2]);
 			vec vertex = vec(info.origin_p[0], info.origin_p[1], info.origin_p[2]);
 			vec ray = vec(info.origin_dir[0], info.origin_dir[1], info.origin_dir[2]);
-
-			int faceid = -1;
+			info.cal_count += nFaces;
+		//	int faceid = -1;
 			if (this->nFaces != 0) {
 				#pragma omp parallel for
 				for (int i = 0; i < nFaces; i++) { //Loop through all the faces in this Node
@@ -352,12 +374,10 @@ namespace trimesh {
 					if (distance != 0) {
 						if (info.closest_d == MIN_DIST_INIT) {
 							info.closest_d = distance;
-							faceid = i;
 							//info.faceID = k;
 						}
 						else if (distance < info.closest_d) {
 							info.closest_d = distance;
-							faceid = i;
 							//faceId = k;
 						}
 					}
@@ -365,7 +385,41 @@ namespace trimesh {
 			}
 		}
 
-	};
+		bool check_which_first(Traversal_Info &info, int index) {
+			vec originV = vec(info.origin_p[0], info.origin_p[1], info.origin_p[2]);
+			vec originRay = vec(info.origin_dir[0], info.origin_dir[1], info.origin_dir[2]);
+
+			vector<float> t_new_i1(3);
+
+			vec max = vec(this->bBox.max[0], this->bBox.max[1],this->bBox.max[2]);
+			switch (index) {
+			case 0: { // plane YZ
+				max[0] = (bBox.max[0] + bBox.min[0]) / 2;
+				break;
+			}
+			case 1: { // plane XZ
+				max[1] = (bBox.max[1] + bBox.min[1]) / 2;
+				break;
+			}
+			case 2: { //plane XY
+				max[2] = (bBox.max[2] + bBox.min[2]) / 2;
+				break;
+			}
+			}
+
+			for (int i = 0; i < 3; i++) {
+				if (originRay[i]<0)
+					t_new_i1[i] = (this->bBox.min[i] - originV[i]) / originRay[i];
+				else
+					t_new_i1[i] = (max[i] - originV[i]) / originRay[i];
+			}
+			float t1_new_min = *std::min_element(t_new_i1.begin(), t_new_i1.end());
+			return t1_new_min >= 0;
+
+		}
+		
+
+	};// END the declaration of NODE
 
 	Octree::Node::Node(vector<vec> pts, int n, 
 		float xmax, float ymax, float zmax,
@@ -501,7 +555,8 @@ namespace trimesh {
 	
 
 	//Build the Node using faces of the 3D model
-	Octree::Node::Node(vector<vector<vec>> facesPts, vec centroid, float edgeLen ,vector<vec> fNormals)
+	//No intermediate node.
+	Octree::Node::Node(vector<vector<vec>> facesPts, vec centroid, float edgeLen ,vector<vec> fNormals, Node* Father)
 	{
 		vector<int> facesIds;
 
@@ -518,8 +573,10 @@ namespace trimesh {
 			bBox.center[i] = centroid[i];
 		}
 		//--is leaf node
+		this->father = Father;
+		bool isSame =this->father!=NULL && this->father->father != NULL && nf == Father->totaln && nf == Father->father->totaln;
 
-		if (nf <= MAX_FACES_PER_NODE) {
+		if (nf <= MAX_FACES_PER_NODE || isSame) {
 			nFaces = nf;
 			node_face_pts.resize(nf);
 			node_faceNormal.resize(nf);
@@ -542,6 +599,8 @@ namespace trimesh {
 		isEmpty = false;
 		isLeaf = false;
 		vector<vector<vec>> faces_in_octants[8];
+		vector<vec> facesNormal_in_octants[8];
+
 		vector<vector<vec>> faces_crossing_planes;
 		vector<vec> faces_crossing_normals;
 		//#pragma omp parallel for
@@ -551,63 +610,74 @@ namespace trimesh {
 			bool all_pts_greater = true;
 			bool all_pts_less = true;
 			vector<vec> pts_per_tri = facesPts[i];
-			bool ruf = true; bool rdf = true; bool rub = true; bool rdb = true;
-			bool luf = true; bool ldf = true; bool lub = true; bool ldb = true;
+			vec faceNormal = fNormals[i];
+			//bool ruf = true; bool rdf = true; bool rub = true; bool rdb = true;
+			//bool luf = true; bool ldf = true; bool lub = true; bool ldb = true;
+			bool ruf = false; bool rdf =false; bool rub = false; bool rdb = false;
+			bool luf = false; bool ldf =false; bool lub = false; bool ldb = false;
 			for (int j = 0; j < 3; j++) {
 				// x,y,z of 3 points of the triangle
 				float pX = pts_per_tri[j][0];
 				float pY = pts_per_tri[j][1];
 				float pZ = pts_per_tri[j][2];
 				//right up front
-				ruf &= pX > planeYZ && pY > planeXZ && pZ > planeXY;
-				rdf &= pX > planeYZ && pY < planeXZ && pZ > planeXY;
-				rub &= pX > planeYZ && pY > planeXZ && pZ < planeXY;
-				rdb &= pX > planeYZ && pY < planeXZ && pZ < planeXY;
-
-				luf &= pX < planeYZ && pY > planeXZ && pZ > planeXY;
-				ldf &= pX < planeYZ && pY < planeXZ && pZ > planeXY;
-				lub &= pX < planeYZ && pY > planeXZ && pZ < planeXY;
-				ldb &= pX < planeYZ && pY < planeXZ && pZ < planeXY;
+				ruf = ruf||(pX >=planeYZ && pY >=planeXZ && pZ >=planeXY);
+				rdf = rdf||(pX >=planeYZ && pY <=planeXZ && pZ >=planeXY);
+				rub = rub||(pX >=planeYZ && pY >=planeXZ && pZ <=planeXY);
+				rdb = rdb||(pX >=planeYZ && pY <=planeXZ && pZ <=planeXY);
+   				   				   
+				luf = luf||(pX <=planeYZ && pY >=planeXZ && pZ >=planeXY);
+				ldf = ldf||(pX <=planeYZ && pY <=planeXZ && pZ >=planeXY);
+				lub = lub|| (pX <=planeYZ && pY >=planeXZ && pZ <=planeXY);
+				ldb = ldb||(pX <=planeYZ && pY <=planeXZ && pZ <=planeXY);
 			}
 			//right up front
 			if (ruf) {
 				faces_in_octants[7].push_back(pts_per_tri);
+				facesNormal_in_octants[7].push_back(faceNormal);
 			}
 			//right down front
-			else if (rdf) {
+			  if (rdf) {
 				faces_in_octants[5].push_back(pts_per_tri);
+				facesNormal_in_octants[5].push_back(faceNormal);
 			}
 
 			//right up back
-			else if (rub) {
+			  if (rub) {
 				faces_in_octants[6].push_back(pts_per_tri);
+				facesNormal_in_octants[6].push_back(faceNormal);
 			}
 			//right down back
-			else if (rdb) {
+			  if (rdb) {
 				faces_in_octants[4].push_back(pts_per_tri);
+				facesNormal_in_octants[4].push_back(faceNormal);
 			}
 			//----------------
 			//left up front
-			else if (luf) {
+			  if (luf) {
 				faces_in_octants[3].push_back(pts_per_tri);
+				facesNormal_in_octants[3].push_back(faceNormal);
 			}
 			//left down front
-			else if (ldf) {
+			  if (ldf) {
 				faces_in_octants[1].push_back(pts_per_tri);
+				facesNormal_in_octants[1].push_back(faceNormal);
 			}
 
 			//left up back
-			else if (lub) {
+			  if (lub) {
 				faces_in_octants[2].push_back(pts_per_tri);
+				facesNormal_in_octants[2].push_back(faceNormal);
 			}
 			//left down back
-			else if (ldb) {
+			  if (ldb) {
 				faces_in_octants[0].push_back(pts_per_tri);
+				facesNormal_in_octants[0].push_back(faceNormal);
 			}
-			else {
-				faces_crossing_planes.push_back(pts_per_tri);
-				faces_crossing_normals.push_back(fNormals[i]);
-			}
+			//else {
+			//	faces_crossing_planes.push_back(pts_per_tri);
+			//	faces_crossing_normals.push_back(faceNormal);
+			//}
 			//other wise:the triangle is crossing the dividing planes
 
 		}
@@ -658,11 +728,32 @@ namespace trimesh {
 		centroids[0] = vec(cx - c_diff, cy - c_diff, cz - c_diff);
 
 		children.resize(8);
+		//for (int i = 0; i < 8; i++) {
+		//	//if (faces_in_octants[i].size() != 0) {
+		//	if (faces_in_octants[i].size() == nf) {
+		//		if (nf > 100)
+		//			cout << "size of child : " << nf;
+		//		nFaces = nf;
+		//		node_face_pts.resize(nf);
+		//		node_faceNormal.resize(nf);
+		//		//#pragma omp parallel for
+		//		for (int i = 0; i < nf; i++) {
+		//			for (int j = 0; j < 3; j++) {
+		//				node_face_pts[i].push_back(facesPts[i][j]);
+		//			}
+		//			node_faceNormal[i] = fNormals[i];
+		//		}
+		//		has_faces_branch = false;
+		//		isLeaf = true;
+		//		if (nf == 0)
+		//			isEmpty = true;
+		//		return;
+		//	}
+		//	//cout << "no changes";
+		//}
 		for (int i = 0; i < 8; i++) {
-			//if (faces_in_octants[i].size() != 0) {
-			
-			children[i] = new Node(faces_in_octants[i], centroids[i], next_edge_len, fNormals);
-			children[i]->father = this;
+			children[i] = new Node(faces_in_octants[i], centroids[i], next_edge_len, facesNormal_in_octants[i] , this);
+			//children[i]->father = this;
 			//}
 		}
 	}
@@ -867,111 +958,6 @@ namespace trimesh {
 		}
 	}
 
-	Octree::Node::Node(vector<vec> pts, int n) {
-
-		// Find bbox of this node
-		float xmin = pts[0][0], xmax = pts[0][0];
-		float ymin = pts[0][1], ymax = pts[0][1];
-		float zmin = pts[0][2], zmax = pts[0][2];
-		for (size_t i = 1; i < n; i++) {
-			if (pts[i][0] < xmin)  xmin = pts[i][0];
-			if (pts[i][0] > xmax)  xmax = pts[i][0];
-			if (pts[i][1] < ymin)  ymin = pts[i][1];
-			if (pts[i][1] > ymax)  ymax = pts[i][1];
-			if (pts[i][2] < zmin)  zmin = pts[i][2];
-			if (pts[i][2] > zmax)  zmax = pts[i][2];
-		}
-		float dx = xmax - xmin;
-		float dy = ymax - ymin;
-		float dz = zmax - zmin;
-		float edgeLen = dx;
-		// decide the longest
-		if (dx >= dy && dx >= dz) {
-			edgeLen = dx;
-			bBox.r = dx;
-		}
-		if (dy >= dx && dy >= dz) {
-			edgeLen = dy;
-			bBox.r = dy;
-		}
-		if (dz >= dy && dz >= dx) {
-			edgeLen = dz;
-			bBox.r = dz;
-		}
-		//------------
-
-		float planeYZ = 0.5f * (xmin + xmax);
-		float planeXZ = 0.5f * (ymin + ymax);
-		float planeXY = 0.5f * (zmin + zmax);
-		//initialize the bounding box attribute
-		bBox.max[0] = xmax; bBox.max[1] = ymax; bBox.max[2] = zmax;
-		bBox.min[0] = xmin; bBox.min[1] = ymin; bBox.min[2] = zmin;
-		bBox.planeYZ = planeYZ; bBox.planeXZ = planeXZ; bBox.planeXY = planeXY;
-
-		//leaf node
-		if (n <= MAX_PTS_PER_NODE) {
-			nPts = n;
-			points.resize(n);
-			points = pts;
-			isLeaf = true;
-			if (n == 0)
-				isEmpty = true;
-			return;
-		}
-		isEmpty = false;
-		nPts = 0;
-		isLeaf = false;
-
-
-
-		// Partition
-		vector<vec> v[8];
-		for (int i = 0; i < n; i++) {
-			
-			float pX = pts[i][0];
-			float pY = pts[i][1];
-			float pZ = pts[i][2];
-			//right up front
- 			if (pX >= planeYZ && pY >= planeXZ && pZ >= planeXY) {
-				v[0].push_back(pts[i]);
-			}
-			//right down front
-			if (pX >= planeYZ && pY < planeXZ && pZ >= planeXY) {
-				v[1].push_back(pts[i]);
-			}
-
-			//right up back
-			if (pX >= planeYZ && pY >= planeXZ && pZ < planeXY) {
-				v[2].push_back(pts[i]);
-			}
-			//right down back
-			if (pX >= planeYZ && pY < planeXZ && pZ < planeXY) {
-				v[3].push_back(pts[i]);
-			}
-			//----------------
-			//left up front
-			if (pX < planeYZ && pY >= planeXZ && pZ >= planeXY) {
-				v[4].push_back(pts[i]);
-			}
-			//left down front
-			if (pX < planeYZ && pY < planeXZ && pZ >= planeXY) {
-				v[5].push_back(pts[i]);
-			}
-
-			//left up back
-			if (pX < planeYZ && pY >= planeXZ && pZ < planeXY) {
-				v[6].push_back(pts[i]);
-			}
-			//left down back
-			if (pX < planeYZ && pY < planeXZ && pZ < planeXY) {
-				v[7].push_back(pts[i]);
-			}
-
-		}
-		children.resize(8);
-		for(int i=0 ; i<8;i++)
-			children[i] = new Node(v[i], v[i].size());
-	}
 
 	//void Octree::Node::box_of_point(Octree::Traversal_Info &ti) const {
 	//	//check if inside the Bounding box of this node
@@ -1456,25 +1442,6 @@ namespace trimesh {
 		unsigned char a = 0;
 		vec size = root->bBox.max - root->bBox.min;
 
-		//if (dir[0] < 0.0f) {
-		//	//p[0] = size[0] - p[0];
-		//	p[0] = 2 *root->bBox.center[0] - p[0];
-		//	dir[0] = -dir[0];
-		//	a = a | 4;
-		//}
-
-		//if (dir[1] < 0.0f) {
-		//	p[1] = 2 * root->bBox.center[1] - p[1];
-		//	dir[1] = -dir[1];
-		//	a = a | 2;
-		//}
-
-		//if (dir[2] < 0.0f) {
-		//	p[2] = 2 * root->bBox.center[2] - p[2];
-		//	dir[2] = -dir[2];
-		//	a = a | 1;
-		//}
-
 		vec vertex = vec(p[0], p[1], p[2]); vec ray = vec(dir[0], dir[1], dir[2]);
 		normalize(ray);
 		vec ptNomral = vec(pNormal[0], pNormal[1], pNormal[2]);
@@ -1506,6 +1473,8 @@ namespace trimesh {
 		Traversal_Info info;
 		info.origin_dir = dir;
 		info.origin_p = p;
+		
+
 		info.level = 0;
 		info.closest_d = MIN_DIST_INIT;
 		info.ptNormal = ptNomral;
@@ -1517,24 +1486,6 @@ namespace trimesh {
 
 		
 		if (originInsideBoundBox) {
-			//cout << "The emission point is inside of the bounding box" << endl;
-			// to do find the shape diameters;
-		//	Node *leaf = new Node();
-		//	
-		//	root->find_point_leaf(p, leaf); //return the lowest node with faces inside;
-		//	leaf->find_ray_intersect_triangle_top_down(p, dir, pNormal, info);
-		//	for (int i = 0; i < 8; i++) {
-		//		if (leaf->father->children[i] != leaf &&
-		//			leaf->father->children[i]->is_ray_intersect_with_octant(vertex, ray))
-		//		leaf->father->children[i]->find_ray_intersect_triangle_top_down(p, dir, pNormal, info);
-		//	}
-		//	if (info.closest_d == MIN_DIST_INIT) {
-		//		leaf->find_ray_intersect_triangle_bottom_up(p, dir, pNormal, info);
-		//	}
-		////	leaf->find_ray_intersect_originInside_bbox(p, dir, info);
-		//	if (info.closest_d == MIN_DIST_INIT) {
-		//		info.closest_d = 0;
-		//	}
 			//vector<float> t_i0(3);	
 			vector<float>  t_i0(3);
 			vector<float> t_i1(3);
@@ -1544,7 +1495,8 @@ namespace trimesh {
 			}
 			float t0_max = *std::max_element(t_i0.begin(), t_i0.end());
 			vec outO = vertex + ((t0_max) * ray);
-			info.origin_t = -t0_max;
+
+			//info.origin_t = t0_max;
 			vector<float> new_t_i0(3);
 			vector<float> new_t_i1(3);
 			for (int i = 0; i < 3; i++) {
@@ -1555,7 +1507,7 @@ namespace trimesh {
 			float t1_min = *std::min_element(new_t_i1.begin(), new_t_i1.end());
 			t0_max =  *std::min_element(new_t_i0.begin(), new_t_i0.end());
 			if (t1_min > t0_max)
-				root->ray_crossing_octants(t_i0, t_i1, info);
+				root->ray_crossing_octants(new_t_i0, new_t_i1, info);
 			else
 				cout << "Vertex inside the bounding box. BUT not intersect with the Bounding" << endl;
 			info.vertex = outO;
@@ -1642,6 +1594,7 @@ namespace trimesh {
 		root = new Node(pts, n, xmax, ymax, zmax, xmin, ymin, zmin);
 		root->father = NULL;
 	}
+	//build the octree with faces
 	void Octree::build_with_faces(std::vector<TriMesh::Face> faces, std::vector<vec> pts , std::vector<vec> fNormals)
 	{
 		std::clock_t time = std::clock();
@@ -1680,7 +1633,13 @@ namespace trimesh {
 			total_faces_index[i] = i;
 		}
 		
-		root=new Node(facesPts, total_faces_index,centroid , edgeLen , fNormals);
+		if (interNode) {
+			root = new Node(facesPts, total_faces_index, centroid, edgeLen, fNormals);
+		}
+		else {
+			root = new Node(facesPts,  centroid, edgeLen, fNormals,NULL);
+		}
+		
 		//Node(facesPt1, facesPt2, facesPt3, centroid , edgeLen);
 		std::cout << endl << "constructing Octree " << double(clock() - time) / CLOCKS_PER_SEC << " s" << std::endl;
 	}

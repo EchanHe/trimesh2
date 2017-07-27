@@ -73,13 +73,13 @@ bool draw_normals = false;
 bool draw_inwardNormals = true;
 bool draw_geo_distance = true;
 bool draw_feature = true;
-bool draw_RayCasting = true;
+bool draw_RayCasting = false;
 bool draw_cone = false;
 bool draw_Octree = false;
 
 vec octRayO = vec(2,-0.5,-2);
 vec octRayDir = vec(-1,1,1);
-int octRay_index = 0;// 49999;// 50000;
+int octRay_index = 0;// 7999;// 49999;// 50000;
 
 
 Octree* octree;
@@ -579,6 +579,7 @@ void drawRayCasting(int i) {
 		//draw ray
 		float scale = (m->bsphere.r*3);
 		vec end =  (octRayO + scale *octRayDir);
+
 		glPushMatrix();
 
 		glColor3f(0.8, 0.0, 0.0);
@@ -800,7 +801,7 @@ void resetview()
 {
 	camera.stopspin();
 
-	// Reload mesh xforms
+	// Reloc mesh xforms
 	for (size_t i = 0; i < meshes.size(); i++)
 		if (!xforms[i].read(xfname(filenames[i])))
 			xforms[i] = xform();
@@ -1059,6 +1060,66 @@ void idle()
 		global_xf = tmp_xf;
 	}
 }
+int file_index = 0;
+const int fileN = 5;
+char * filenames_input[fileN] = { "..\\..\\..\\data\\beak_sdf.ply" ,"..\\..\\..\\data\\beak_sdf2.ply" ,"..\\..\\..\\data\\frog.ply",
+"..\\..\\..\\data\\2934_smooth_sdf.ply" ,"..\\..\\..\\data\\bird_one_component_sdf.ply" };
+//char * f = filenames[0];
+//read mesh()
+void readMesh(int file_index) {
+	TriMesh *themesh = TriMesh::read(filenames_input[file_index]);
+	themesh->need_bsphere();
+	for (int i = 0; i < themesh->vertices.size(); i++) {
+		for (int j = 0; j < 3; j++) {
+			themesh->vertices[i][j] = themesh->vertices[i][j] - themesh->bsphere.center[j];
+		}
+
+	}
+
+	themesh->bsphere = {};
+	themesh->normals.clear();
+	themesh->tstrips.clear();
+
+
+	themesh->colors.clear();
+	themesh->need_faceMidPts();
+	themesh->need_normals();
+	themesh->need_inwardNormals();
+	themesh->need_tstrips();
+	themesh->need_bsphere();
+	themesh->need_faceNormals();
+
+
+	themesh->need_curvatures();
+
+	//------FEATURES EXTRACTION
+	//Assign the Vertex quality to sdf
+	themesh->sdf = themesh->quality;
+
+	if (file_index < 2)
+		themesh->need_feature_points_curv_sdf_beak();
+	else
+		themesh->need_feature_points_curv_sdf();
+	//std::cout << "The size of feature points :" << themesh->landmarkID.size() << endl;
+	//std::cout << "colors? :" << themesh->colors.size() << endl;
+
+	//------COLORING PART--------------
+
+	//themesh->color_vertex(themesh->landmarkID);
+	//themesh->color_vertex(themesh->quality);
+	//themesh->color_vertex(themesh->sdf_brute,false);
+	themesh->color_vertex(themesh->sdf, false);
+	//cout << themesh->curv1[0];
+	//calculate the color
+
+
+	//cout << compSizes[0];
+	meshes.clear();
+	meshes.push_back(themesh);
+	xforms.push_back(xform());
+	visible.push_back(true);
+	filenames.push_back(filenames_input[file_index]);
+}
 
 
 // Keyboard
@@ -1078,6 +1139,8 @@ void keyboardfunc(unsigned char key, int, int)
 			draw_edges = !draw_edges; break;
 		case 'f':
 			draw_falsecolor = !draw_falsecolor; break;
+		case Ctrl + 'f':
+			draw_feature = !draw_feature; break;
 		case 'l':
 			draw_lit = !draw_lit; break;
 		case 'p':
@@ -1134,12 +1197,14 @@ void keyboardfunc(unsigned char key, int, int)
 			//octRayDir = rotation(octRayDir, -10, vec(0, 1, 0));; break;
 		}
 		case '>': {
-			octRay_index = (octRay_index + 1) % meshes[0]->vertices.size();
+			//octRay_index = (octRay_index + 1) % meshes[0]->vertices.size();
+			readMesh((file_index++)%fileN);
 			break;
 			//octRayDir = rotation(octRayDir, -10, vec(0, 1, 0));; break;
 		}
 		case '<': {
-			octRay_index = (octRay_index - 1) % meshes[0]->vertices.size();
+			//octRay_index = (octRay_index - 1) % meshes[0]->vertices.size();
+			readMesh((file_index--) % fileN);
 			break;
 			//octRayDir = rotation(octRayDir, -10, vec(0, 1, 0));; break;
 		}
@@ -1178,30 +1243,36 @@ int main(int argc, char *argv[])
 		const char *filename = argv[i];
 		//filename = "..\\..\\..\\data\\torus_sdf.ply";
 		//filename = "..\\..\\..\\data\\external_surface_only.ply";
-		//filename = "..\\..\\..\\data\\bird_one_component_sdf.ply";
-		//filename = "..\\..\\..\\data\\Bucanetes_githagineus_1.obj";
-		//filename = "..\\..\\..\\data\\torus2.ply";
+		filename = "..\\..\\..\\data\\bird_one_component_sdf.ply";
+	//	filename = "..\\..\\..\\data\\beak_sdf2.ply";
+		filename = "..\\..\\..\\data\\torus2.ply";
 		filename = "..\\..\\..\\data\\cow2.ply";
-		//filename = "..\\..\\..\\data\\elephant.off";
-	//	//filename = "..\\..\\..\\data\\cube.ply";
-//	filename = "..\\..\\..\\data\\l_leg_50.ply";
-	//	filename = "..\\..\\..\\data\\2934_smooth_sdf.ply";
+//filename = "..\\..\\..\\data\\elephant.off";
+//	//	//filename = "..\\..\\..\\data\\cube.ply";
+filename = "..\\..\\..\\data\\l_leg_50.ply";
+//filename = "..\\..\\..\\data\\frog.ply";
+//		filename = "..\\..\\..\\data\\2934_smooth_sdf.ply";
+	//	filename = "..\\..\\..\\data\\bird_one_component_simple.ply";
+	//	const char *filename_simple = "..\\..\\..\\data\\bird_one_component_simple_1.ply";
 		TriMesh *themesh = TriMesh::read(filename);
+		//TriMesh *simple = TriMesh::read(filename);
+		//simple->need_faceNormals();
 
-
-	/*	a = 0;
-		a = a | 4;*/
-		unsigned char a = 4; 
-		unsigned char b = 1;
-		unsigned char c = a^b;
 
 		if (!themesh)
 			usage(argv[0]);
 		//trimesh::lmsmooth(themesh, 40);
+		//themesh->need_bsphere();
+		//for (int i = 0; i < themesh->vertices.size(); i++) {
+		//	for (int j = 0; j < 3; j++) {
+		//		themesh->vertices[i][j] = themesh->vertices[i][j] -themesh->bsphere.center[j];
+		//	}
+		//	
+		//}
 
-
-
-
+		themesh->bsphere = {};
+		themesh->normals.clear();
+		themesh->tstrips.clear();
 		themesh->colors.clear();
 		themesh->need_faceMidPts();
 		themesh->need_normals();
@@ -1209,7 +1280,7 @@ int main(int argc, char *argv[])
 		themesh->need_tstrips();
 		themesh->need_bsphere();
 		themesh->need_faceNormals();
-
+		themesh->need_neighbors();
 
 		themesh->need_curvatures();
 		//themesh->need_agd();
@@ -1220,7 +1291,7 @@ int main(int argc, char *argv[])
 	/*	Octree * octreeFace = new Octree(themesh->faces, themesh->vertices, themesh->faceNormals);
 		octRayInfo = octreeFace->intersect_face_from_raycast(themesh->vertices[0], themesh->inwardNormals[0], themesh->normals[0]);
 */
-		octree = new Octree(themesh->faces, themesh->vertices, themesh->faceNormals);
+		//octree = new Octree(themesh->faces, themesh->vertices, themesh->faceNormals);
 		//Octree::Node * a =octree->getRoot();
 		
 		//--ray is outside of the shape
@@ -1229,8 +1300,11 @@ int main(int argc, char *argv[])
 		//--ray is inside the shape
 		//octRayInfo = octree->find_cube_from_raycast(themesh->vertices[0], themesh->inwardNormals[0]);
 	//	octRayInfo = octree->find_cube_from_raycast(octRayO, octRayDir);
+		//themesh->need_sdf_from_simple(simple);
 		themesh->need_sdf_octree();
-
+	//	themesh->compare_sdfs();
+		//themesh->writeSDF();
+		
 		//themesh->need_sdf_brute();
 		//cout << "number of sdf " << themesh->sdf_brute.size()<<endl;
 		//themesh->colors.resize(themesh->vertices.size());
@@ -1242,14 +1316,17 @@ int main(int argc, char *argv[])
 
 		//------FEATURES EXTRACTION
 		//Assign the Vertex quality to sdf
-		//themesh->sdf = themesh->quality;
-		//themesh->need_feature_points_curv_sdf();
+		//if (themesh->quality.size() != 0) {
+		//	themesh->sdf = themesh->quality;
+		//}
+		
+	//	themesh->need_feature_points_curv_sdf();
 		//std::cout << "The size of feature points :" << themesh->landmarkID.size() << endl;
 		//std::cout << "colors? :" << themesh->colors.size() << endl;
 
 		//------COLORING PART--------------
 
-	//	themesh->color_vertex(themesh->landmarkID);
+		//themesh->color_vertex(themesh->landmarkID);
 		//themesh->color_vertex(themesh->quality);
 		//themesh->color_vertex(themesh->sdf_brute,false);
 		themesh->color_vertex(themesh->sdf, false);

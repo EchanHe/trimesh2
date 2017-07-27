@@ -169,12 +169,16 @@ public:
 	void writeCurvature();
 	void remove_outlier(StatVal val);
 	void need_feature_points_curv_sdf();
+	void TriMesh::need_feature_points_curv_sdf_beak();
 
 	void need_agd();
 
 	void need_sdf();
 	void need_sdf_brute();
+	void TriMesh::need_sdf_from_simple(TriMesh *simple);
 	void need_sdf_octree();
+	void compare_sdfs();
+	void writeSDF();
 	//template<class T>
 	void TriMesh::color_vertex(::std::vector<float> attri, bool optimized = true);
 	void TriMesh::color_vertex(::std::vector<int> index);
