@@ -172,6 +172,7 @@ namespace trimesh {
 		std::vector<Node*> children;
 		Node *father =NULL;
 		
+		bool isRoot = false;
 		bool isLeaf;
 		bool isEmpty=false;
 		bool has_faces_branch;
@@ -232,6 +233,43 @@ namespace trimesh {
 				info.bBox_maxs.push_back(bBox.max);
 				info.bBox_mins.push_back(bBox.min);
 				//cout << "reach the leaf";
+				return;
+			}
+			for (int i = 0; i < 8; i++) {
+				children[i]->traverse_all_leaves(info);
+			}
+		}
+
+		void traverse_all_leaves(Tree_Info &info , int & temp) {
+			if (isEmpty)
+				return;
+			if (isRoot) {
+				temp = 0;
+			}
+			else if (!isLeaf) {
+				temp++;
+			}
+			if (isLeaf) {
+				if (temp > info.highest_layer)
+					info.highest_layer = temp;
+				
+				if (temp < info.lowest_layer)
+					info.lowest_layer = temp;
+				//cout << "reach the leaf";
+				temp--;
+				return;
+			}
+			for (int i = 0; i < 8; i++) {
+				children[i]->traverse_all_leaves(info, temp);
+			}
+			temp--;
+		}
+
+		void traverse_info(Tree_Info &info) {
+			if (isEmpty)
+				return;
+			if (isLeaf) {
+				//cout << "reach the leaf";
 				if (nFaces <= MAX_FACES_PER_NODE)
 					info.equal_max_faces_count++;
 				info.leaves_count++;
@@ -241,16 +279,18 @@ namespace trimesh {
 				info.branch_count++;
 			}
 			for (int i = 0; i < 8; i++) {
-				children[i]->traverse_all_leaves(info);
+				children[i]->traverse_info(info);
 			}
 		}
-
 
 
 		void ray_crossing_octants(vector<float> t_i0 , vector<float> t_i1,Traversal_Info &info) {
 			//The first distance calculated is the closest distance
 			if (info.closest_d != MIN_DIST_INIT)
 				return;
+
+			info.level_count++;
+
 			//--calculate the origin t1s and the min t1 for exit plane 
 			vec originV = vec(info.origin_p[0], info.origin_p[1], info.origin_p[2]);
 			vec originRay = vec(info.origin_dir[0], info.origin_dir[1], info.origin_dir[2]);
@@ -419,8 +459,11 @@ namespace trimesh {
 		}
 		
 
+
+
 	};// END the declaration of NODE
 
+	//construct OCTREE using 
 	Octree::Node::Node(vector<vec> pts, int n, 
 		float xmax, float ymax, float zmax,
 		float xmin, float ymin, float zmin) {
@@ -556,6 +599,7 @@ namespace trimesh {
 
 	//Build the Node using faces of the 3D model
 	//No intermediate node.
+	//All crossing faces go to the octant
 	Octree::Node::Node(vector<vector<vec>> facesPts, vec centroid, float edgeLen ,vector<vec> fNormals, Node* Father)
 	{
 		vector<int> facesIds;
@@ -761,6 +805,7 @@ namespace trimesh {
 
 	//Build the Node using faces of the 3D model 
 	// With the face ID.
+	// With intermediate nodes
 	Octree::Node::Node(vector<vector<vec>> facesPts, vector<int> facesIDs, vec centroid, float edgeLen, vector<vec> fNormals)
 	{
 	
@@ -902,6 +947,7 @@ namespace trimesh {
 		}
 
 		//-- is branch Node with faces (faces which intersect with the partition planes)
+
 		if (faces_crossing_planes.size() != 0) {
 			has_faces_branch = true;
 			int n_crossing = faces_crossing_planes.size();
@@ -925,6 +971,8 @@ namespace trimesh {
 		else {
 			has_faces_branch = false;
 		}
+
+
 
 		//Calculate the parameters (centroid and edge length) for childern
 		//Use the centroid and edge length is this Node.
@@ -959,35 +1007,8 @@ namespace trimesh {
 	}
 
 
-	//void Octree::Node::box_of_point(Octree::Traversal_Info &ti) const {
-	//	//check if inside the Bounding box of this node
-	//	bool insideBoundBox = true;
-	//	for (int i = 0; i < 3; i++) {
-	//		insideBoundBox = insideBoundBox && (ti.origin_p[i] <= bBox.max[i]) && (ti.origin_p[i] >= bBox.min[i]);
-	//	} 
 
-	//	if (insideBoundBox&&isLeaf) {
-	//		cout << "level: " << ti.level << endl;;
-	//		cout << "The bound box is  ";
-	//		cout <<endl<< "max  ";
-	//		for (int i = 0; i < 3; i++) {
-	//			cout << " " << bBox.max[i] << ",";
-	//		}
-	//		cout << endl << "min ";
-	//		for (int i = 0; i < 3; i++) {
-	//			cout << " " << bBox.min[i]<<",";
-	//		}
-	//		cout << endl;
-	//		ti.level--;
-	//		return;
-	//	}
-	//	if (insideBoundBox) {
-	//		ti.level++;
-	//		for (int i = 0; i < 8; i++)
-	//			children[i]->find_closest_to_ray(ti);
-	//	}
 
-	//}
 
 	Octree::Node::Octants Octree::Node::find_octant_point(const float *p) {
 		float pX = p[0], pY = p[1], pZ = p[2];
@@ -1159,12 +1180,11 @@ namespace trimesh {
 
 		}
 		if(isIntersect && !isLeaf){
-			info.level += 1;
 			for (int i = 0; i < 8; i++) {
 				info.iChild = i;
 				children[i]->ray_intersect_cube(p, dir, info);
 			}
-			info.level -= 1;
+			
 		}
 		return;
 	}
@@ -1410,7 +1430,6 @@ namespace trimesh {
 		
 		ti.origin_dir = dir;
 		ti.origin_p = p;
-		ti.level = 0;
 		ti.closest_d = 1000000;
 
 		bool originInsideBoundBox = true;
@@ -1474,8 +1493,6 @@ namespace trimesh {
 		info.origin_dir = dir;
 		info.origin_p = p;
 		
-
-		info.level = 0;
 		info.closest_d = MIN_DIST_INIT;
 		info.ptNormal = ptNomral;
 		info.ray_neg_convert_bits = a;
@@ -1550,6 +1567,17 @@ namespace trimesh {
 
 		return info;
 	}
+	Octree::Tree_Info Octree::find_tree_info()
+	{
+		Tree_Info info;
+		info.lowest_layer = 1000000;
+		info.highest_layer = 0;
+		int temp = 0;
+		root->traverse_all_leaves(info,temp);
+		root->traverse_info(info);
+		return info;
+	}
+
 
 	// A point together with a distance - default comparison is by "first",
 	// i.e., distance
@@ -1633,153 +1661,40 @@ namespace trimesh {
 			total_faces_index[i] = i;
 		}
 		
-		if (interNode) {
+		if (INTER_NODE) {
 			root = new Node(facesPts, total_faces_index, centroid, edgeLen, fNormals);
 		}
 		else {
 			root = new Node(facesPts,  centroid, edgeLen, fNormals,NULL);
 		}
-		
+		root->isRoot = true;
 		//Node(facesPt1, facesPt2, facesPt3, centroid , edgeLen);
 		std::cout << endl << "constructing Octree " << double(clock() - time) / CLOCKS_PER_SEC << " s" << std::endl;
 	}
 
-	//// Class for nodes in the K-D tree
-	//class Octree::Node {
-	//private:
-	//	static PoolAlloc memPool;
+	int Octree::node_height(Octree::Node * node)
+	{
+		if (node->isLeaf)
+			return 0;
+		else
+		{
 
-	//public:
-	//	// A place to put all the stuff required while traversing the K-D
-	//	// tree, so we don't have to pass tons of variables at each fcn call
-	//	struct Traversal_Info {
-	//		const float *p, *dir;
-	//		const float *closest;
-	//		float closest_d, closest_d2;
-	//		const Octree::CompatFunc *iscompat;
-	//		size_t k;
-	//		vector<pt_with_d> knn;
-	//	};
+			int heights[8] = {0,0,0,0,0,0,0,0};
+			for (int i = 0; i < 8; i++) {
+				heights[i] = node_height(node->children[i]);
+			}
 
-	//	enum { MAX_PTS_PER_NODE = 1 };
+			/* compute the height of each subtree */
+			/*int lheight = node_height(node->left);
+			int rheight = node_height(node->right);*/
 
-
-	//	// The node itself
-
-	//	int npts; // If this is 0, intermediate node.  If nonzero, leaf.
-
-	//	union {
-	//		struct {
-	//			float center[3];
-	//			float r;
-	//			int splitaxis;
-	//			Node *child1, *child2;
-	//		} node;
-	//		struct {
-	//			const float *p[MAX_PTS_PER_NODE];
-	//		} leaf;
-	//	};
-
-	//	Node(const float **pts, size_t n);
-	//	~Node();
-
-	//	void find_closest_to_pt(Traversal_Info &ti) const;
-	//	void find_k_closest_to_pt(Traversal_Info &ti) const;
-	//	void find_closest_to_ray(Traversal_Info &ti) const;
-
-	//	void *operator new(size_t n) { return memPool.alloc(n); }
-	//	void operator delete(void *p, size_t n) { memPool.free(p, n); }
-	//};
-
-
-	//// Class static variable
-	//PoolAlloc Octree::Node::memPool(sizeof(Octree::Node));
-
-
-	//// Create a KD tree from the points pointed to by the array pts
-	//Octree::Node::Node(const float **pts, size_t n)
-	//{
-	//	// Leaf nodes
-	//	if (n <= MAX_PTS_PER_NODE) {
-	//		npts = n;
-	//		memcpy(leaf.p, pts, n * sizeof(float *));
-	//		return;
-	//	}
-
-
-	//	// Else, interior nodes
-	//	npts = 0;
-
-	//	// Find bbox
-	//	float xmin = pts[0][0], xmax = pts[0][0];
-	//	float ymin = pts[0][1], ymax = pts[0][1];
-	//	float zmin = pts[0][2], zmax = pts[0][2];
-	//	for (size_t i = 1; i < n; i++) {
-	//		if (pts[i][0] < xmin)  xmin = pts[i][0];
-	//		if (pts[i][0] > xmax)  xmax = pts[i][0];
-	//		if (pts[i][1] < ymin)  ymin = pts[i][1];
-	//		if (pts[i][1] > ymax)  ymax = pts[i][1];
-	//		if (pts[i][2] < zmin)  zmin = pts[i][2];
-	//		if (pts[i][2] > zmax)  zmax = pts[i][2];
-	//	}
-
-	//	// Find node center and size
-	//	node.center[0] = 0.5f * (xmin + xmax);
-	//	node.center[1] = 0.5f * (ymin + ymax);
-	//	node.center[2] = 0.5f * (zmin + zmax);
-	//	float dx = xmax - xmin;
-	//	float dy = ymax - ymin;
-	//	float dz = zmax - zmin;
-	//	node.r = 0.5f * sqrt(sqr(dx) + sqr(dy) + sqr(dz));
-
-	//	// Find longest axis
-	//	node.splitaxis = 2;
-	//	if (dx > dy) {
-	//		if (dx > dz)
-	//			node.splitaxis = 0;
-	//	}
-	//	else {
-	//		if (dy > dz)
-	//			node.splitaxis = 1;
-	//	}
-
-	//	// Partition
-	//	const float splitval = node.center[node.splitaxis];
-	//	const float **left = pts, **right = pts + n - 1;
-	//	while (1) {
-	//		while ((*left)[node.splitaxis] < splitval)
-	//			left++;
-	//		while ((*right)[node.splitaxis] > splitval)
-	//			right--;
-	//		if (right <= left)
-	//			break;
-	//		swap(*left, *right);
-	//		left++; right--;
-	//	}
-
-	//	// Build subtrees
-	//	node.child1 = new Node(pts, left - pts);
-	//	node.child2 = new Node(left, n - (left - pts));
-	//}
-
-
-
-
-	//// Create a KDtree from a list of points (i.e., ptlist is a list of 3*n floats)
-	//void Octree::build(const float *ptlist, size_t n)
-	//{
-	//	vector<const float *> pts(n);
-	//	for (size_t i = 0; i < n; i++)
-	//		pts[i] = ptlist + i * 3;
-
-	//	root = new Node(&(pts[0]), n);
-	//}
-
-
-
-
-
-
-
+			int result = *std::max_element(heights, heights + 8);
+			/* use the larger one */
+			//if (lheight > rheight)
+			//	return(lheight + 1);
+			//else return(rheight + 1);
+			return result+1;
+		}
+	}
 
 }; // namespace trimesh
