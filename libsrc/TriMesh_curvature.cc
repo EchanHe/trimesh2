@@ -18,7 +18,7 @@ Uses algorithm from
 
 #include <numeric>
 
-#include <boost\iterator\zip_iterator.hpp>
+//#include <boost\iterator\zip_iterator.hpp>
 #include <boost\tuple\tuple.hpp>
 #include <boost\tuple\tuple_io.hpp>
 #include <boost/foreach.hpp>
@@ -266,167 +266,25 @@ void TriMesh::need_curvatures()
 	dprintf("Done.\n");
 }
 
-void TriMesh::need_curvatures_color() {
-	if (colors.size() == vertices.size())
-		return;
-	colors.resize(vertices.size());
-	bool meanColor = false;
-
-	if (meanColor) {
-
-		auto min_mean_curv = std::min_element(mean_curv.begin(), mean_curv.end());
-		auto max_mean_curv = std::max_element(mean_curv.begin(), mean_curv.end());
-
-		float scale = 1 / (*max_mean_curv - *min_mean_curv);
-		for (int i = 0; i < vertices.size(); i++) {
-			float intensity = scale * (mean_curv[i] - *min_mean_curv);
-			if (mean_curv[i] < 0)
-				colors[i] = Color(0.0f, intensity, 0.0f);
-			else
-				colors[i] = Color(intensity, 0.0f, 0.0f);
-			//if (mean_curv[i] > 0 && gaus_curv[i]<=0)
-			//	colors[i] = Color::blue();
-			//else if (mean_curv[i] > 0 && gaus_curv[i]>0)
-			//	colors[i] = Color::green();
-			//else if (mean_curv[i] <0 && gaus_curv[i] <= 0)
-			//	colors[i] = Color::orange();
-			//else if (mean_curv[i] <0 && gaus_curv[i] > 0)
-			//	colors[i] = Color::red();
-			//else
-			//	colors[i] = Color::white();
-
-			
-
-		}
-	}
-	else {
-		float sum = std::accumulate(gaus_curv.begin(), gaus_curv.end(), 0.0f);
-		float mean = sum / gaus_curv.size();
-		float sq_sum = std::inner_product(gaus_curv.begin(), gaus_curv.end(), gaus_curv.begin(), 0.0);
-		float stdev = std::sqrt(sq_sum / gaus_curv.size() - mean * mean);
-
-		float maxThres = mean + 2 * stdev;
-		float minThres = mean - 2 * stdev;
-		//---------------------------------------
-
-		auto min_curv = std::min_element(gaus_curv.begin(), gaus_curv.end());
-		auto max_curv = std::max_element(gaus_curv.begin(), gaus_curv.end());
-
-		float scale = 1 / (*max_curv - *min_curv);
-		float interval = scale / 4.0f;
-
-		for (int i = 0; i < vertices.size(); i++) {
-			float intensity = scale * (gaus_curv[i] - *min_curv);
-
-			if (gaus_curv[i] < 0)
-				colors[i] = Color(0.0f, intensity, 0.0f);
-			else
-				colors[i] = Color(intensity, 0.0f, 0.0f);
-			//if (mean_curv[i] > 0 && gaus_curv[i]<=0)
-			//	colors[i] = Color::blue();
-			//else if (mean_curv[i] > 0 && gaus_curv[i]>0)
-			//	colors[i] = Color::green();
-			//else if (mean_curv[i] <0 && gaus_curv[i] <= 0)
-			//	colors[i] = Color::orange();
-			//else if (mean_curv[i] <0 && gaus_curv[i] > 0)
-			//	colors[i] = Color::red();
-			//else
-			//	colors[i] = Color::white();
-
-
-		}
-	}
-}
-void TriMesh::need_curvatures_threshold_color() {
-	if (colors.size() == vertices.size())
-		return;
-	colors.resize(vertices.size());
-	bool meanColor = false;
-	
-	//Eigen::VectorXf mean_curvE = Eigen::VectorXf::Map(mean_curv.data(), mean_curv.size());
-	//std::cout << mean_curvE.mean() << " " << mean_curvE.maxCoeff() << " " << mean_curvE.minCoeff();
-	float maxThres;
-	float minThres;
-	if(meanColor){
-		auto min_mean_curv = std::min_element(mean_curv.begin(), mean_curv.end());
-		auto max_mean_curv = std::max_element(mean_curv.begin(), mean_curv.end());
-
-		float sum = std::accumulate(mean_curv.begin(), mean_curv.end(), 0.0f);
-		float mean = sum / mean_curv.size();
-		float sq_sum = std::inner_product(mean_curv.begin(), mean_curv.end(), mean_curv.begin(), 0.0);
-		float stdev = std::sqrt(sq_sum / mean_curv.size() - mean * mean);
-
-		float range = *max_mean_curv - *min_mean_curv;
-
-		maxThres = mean + 1 * stdev;
-		minThres = mean - 1 * stdev;
-
-		//std::cout << maxThres << "  " << minThres << std::endl;
-		//std::cout << *max_mean_curv << "  " << *min_mean_curv << std::endl;
-		for (int i = 0; i < vertices.size(); i++) {
-			//float intensity = scale * (mean_curv[i] - *min_mean_curv);
-			if (mean_curv[i] < minThres)
-				colors[i] = Color(0.0f, 1.0f, 0.0f);
-			else if (mean_curv[i]>maxThres)
-				colors[i] = Color(1.0f, 0.0f, 0.0f);
-			else
-				colors[i] = Color(1.0f, 1.0f, 1.0f);
-		}
-
-		std::cout << "Writing threshold curvature to curvature_thre.csv" << std::endl;
-		std::ofstream file;
-		file.open("..\\..\\..\\data\\curvature_thre.csv");
-		//float a, b;
-		for (auto & a : mean_curv) {
-			if (a > maxThres || a < minThres) {
-				file << a << "\n";
-			}
-		}
-	}
-	else {
-		float sum = std::accumulate(gaus_curv.begin(), gaus_curv.end(), 0.0f);
-		float mean = sum / gaus_curv.size();
-		float sq_sum = std::inner_product(gaus_curv.begin(), gaus_curv.end(), gaus_curv.begin(), 0.0);
-		float stdev = std::sqrt(sq_sum / gaus_curv.size() - mean * mean);
-
-		maxThres = mean + 1 * stdev;
-		minThres = mean - 1 * stdev;
-
-		//std::cout << maxThres << "  " << minThres << std::endl;
-		//std::cout << *max_mean_curv << "  " << *min_mean_curv << std::endl;
-		for (int i = 0; i < vertices.size(); i++) {
-			//float intensity = scale * (mean_curv[i] - *min_mean_curv);
-			if (gaus_curv[i] < minThres)
-				colors[i] = Color(0.0f, 1.0f, 0.0f);
-			else if (gaus_curv[i]>maxThres)
-				colors[i] = Color(1.0f, 0.0f, 0.0f);
-			else
-				colors[i] = Color(1.0f, 1.0f, 1.0f);
-		}
-		std::cout << "Writing threshold curvature to curvature_thre.csv" << std::endl;
-		std::ofstream file;
-		file.open("..\\..\\..\\data\\curvature.csv");
-		//float a, b;
-		for (auto & a : gaus_curv) {
-			if (a > maxThres || a < minThres) {
-				file << a << "\n";
-			}
-		}
-	}
-}
-
 
 void TriMesh::writeCurvature() {
 	std::cout << "Writing curvature to curvature.csv"<<std::endl;
 	std::ofstream file;
-	file.open("curvature.csv");
+	char str[80];
+	strcpy(str, filename);
+	strcat(str, "_curvatures.csv");
+	file.open(str);
 	float a, b;
 	file << "gaussian,mean" << "\n";
-	BOOST_FOREACH(boost::tie(a, b),
-		boost::combine(gaus_curv, mean_curv)) {
-		file << a << "," << b << "\n";
-
+	for (int i = 0; i < gaus_curv.size(); i++) {
+		file << gaus_curv[i] << "," << mean_curv[i]<<"\n";
 	}
+
+	//BOOST_FOREACH(boost::tie(a, b),
+	//	boost::combine(gaus_curv, mean_curv)) {
+	//	file << a << "," << b << "\n";
+
+	//}
 }
 
 // Compute derivatives of curvature.

@@ -2,6 +2,7 @@
 #include "TriMesh_algo.h"
 #include "kdTree_face.h"
 #include "octree.h"
+#include "bvh.h"
 #include <numeric>
 //#include "Vec.h"
 using namespace std;
@@ -183,61 +184,6 @@ namespace trimesh {
 	}
 
 	//---------function for sdf-------------------------
-	void TriMesh::need_sdf() {
-		std::clock_t begin = clock();
-		need_normals();
-		need_inwardNormals();
-		need_faceNormals();
-		need_faceMidPts();
-		std::cout << std::endl << "Build kd tree: ";
-		KDtreeFace *k = new KDtreeFace(faceMidPts);
-		std::cout << double(clock() - begin) / CLOCKS_PER_SEC << " s" << std::endl;
-		begin = clock();
-		if (sdf.size() == vertices.size())
-			return;
-		sdf.resize(vertices.size());
-
-		int nv = vertices.size();
-		//nv = 1;
-		int nf = faces.size();
-
-		std::vector<vec> rays;
-
-		std::cout << std::endl << "computing the shape diameters using kd tree: " ;
-		
-//#pragma omp parallel for
-
-		for (int i = 0; i < nv; i++) {
-			//initialize the vertex, in normal and rays for SDF
-			vec inwardNormal = inwardNormals[i];
-			vec vertex = vertices[i];
-			make_cone(vertex, inwardNormal, rays);
-		
-			
-			//vector<float>distances;
-			//distances.resize(rays.size());
-			//for (int j = 0;  j < rays.size(); j++) {
-			//	const float* a = k->closest_to_ray(vertex, rays[j]);
-			//	if (a != NULL) {
-			//		vec intersect(a[0], a[1], a[2]);
-			//		distances[j] = len(intersect - vertex);
-			//	}
-			//	if (i % 10000 == 0&&i/10000!=0)
-			//	std::cout << "finish one "<<i << endl;
-			//}
-
-			const float* a = k->closest_to_ray(vertex, inwardNormal);
-			vec intersect(a[0], a[1], a[2]);
-			sdf[i] = len(intersect - vertex);
-			//sdf[i] = sdf_stat_mean(distances);
-			if (i% (nv / 10)==0)
-				std::cout << "Finish "<< i / (nv / 10)<<" % of ht SDF" << std::endl;
-
-		}
-
-		std::cout << double(clock() - begin) / CLOCKS_PER_SEC << " s" << std::endl;
-	}
-
 	void TriMesh::need_sdf_brute() {
 		need_normals();
 		need_inwardNormals();
@@ -376,10 +322,17 @@ namespace trimesh {
 			}
 			//const float* a = 
 			//	vec intersect(a[0], a[1], a[2]);
-			float median = sdf_stat_median(distances);
-			float stdev = sdf_stat_stdev(distances);
+
 			//sdf[i] = sdf_stat_mean(distances);
-			sdf[i] = sdf_stat_mean(distances, median, stdev);
+			if (distances.size() == 0) {
+				sdf[i] = 0;
+			}
+			else {
+				float median = sdf_stat_median(distances);
+				float stdev = sdf_stat_stdev(distances);
+				sdf[i] = sdf_stat_mean(distances, median, stdev);
+			}
+
 			if (i % (nv / 100) == 0)
 				std::cout << "Finish " << i / (nv / 100) << "% of ht SDF" << std::endl;
 		}
@@ -402,12 +355,16 @@ namespace trimesh {
 		//using the Vertices to build the Octree
 		//Octree *k = new Octree(vertices);
 		Octree * octreeFace = new Octree(faces, vertices, faceNormals);
-		Octree::Traversal_Info info = octreeFace->find_all_leaves();
+		Octree::Tree_Info info = octreeFace->find_tree_info();
 		cout << "branch, leaves, correct size leaves :" << info.branch_count << " " << info.leaves_count << " " << info.equal_max_faces_count << endl;
+	//	cout << "The deep and low layer:  " << info.highest_layer << " " << info.lowest_layer << endl;
+		cout << "The height " << octreeFace->find_tree_height();
+
 		begin = clock();
 		std::vector<vec> rays;
 		std::cout << std::endl << "computing the shape diameters using octree tree: ";
 		int cal_count=0;
+		int level_count = 0;
 		for (int i = 0; i < nv; i++) {
 			//---initialize the vertex, in normal and rays for SDF
 			vec inwardNormal = inwardNormals[i];
@@ -424,25 +381,180 @@ namespace trimesh {
 				Octree::Traversal_Info info = octreeFace->intersect_face_from_raycast(vertex, rays[j], normal);
 				float d_from_octree = info.closest_d;
 				cal_count += info.cal_count;
+				level_count += info.level_count;
 				if (d_from_octree != 0)
 					distances.push_back(d_from_octree);
 					//distances[j] = d_from_octree;
 			}
 			//const float* a = 
 		//	vec intersect(a[0], a[1], a[2]);
-			float median = sdf_stat_median(distances);
-			float stdev = sdf_stat_stdev(distances);
-			//sdf[i] = sdf_stat_mean(distances);
-			sdf[i] = sdf_stat_mean(distances, median, stdev);
+
+			if (distances.size() == 0) {
+				sdf[i] = 0;
+			}
+			else {
+				float median = sdf_stat_median(distances);
+				float stdev = sdf_stat_stdev(distances);
+				sdf[i] = sdf_stat_mean(distances, median, stdev);
+			}
 			if (i % (nv / 10) == 0)
 				std::cout << "Finish " << i / (nv / 10) << "0% of ht SDF" << std::endl;
 		}
 		std::cout << double(clock() - begin) / CLOCKS_PER_SEC << " s" << std::endl;
 	//	std::cout << "The brute force calculation times: "<<nv*nf*81<<endl;
-		std::cout << "The faces traverse per ray and vertices " << cal_count/(nv*81);
-
+		std::cout << "The faces traverse per ray and vertices " << cal_count/(nv*81)<<endl;
+		std::cout << "The levels traverse per ray and vertices " << level_count / (nv * 81) << endl;
 	}
 
+
+	void TriMesh::need_sdf_bvh() {
+		if (sdf.size() == vertices.size())
+			return;
+		int nv = vertices.size();
+		int nf = faces.size();
+
+		sdf.resize(vertices.size());
+		std::clock_t begin = clock();
+		need_normals();
+		need_inwardNormals();
+		need_faceNormals();
+		need_faceMidPts();
+		//using the Vertices to build the Octree
+
+		BVH * octreeFace = new BVH(faces, vertices, faceNormals);
+
+
+
+		BVH::Tree_Info info = octreeFace->find_tree_info();
+		cout << "branch, leaves, correct size leaves :" << info.branch_count << " " << info.leaves_count << " " << info.equal_max_faces_count << endl;
+		cout << "The max faces count: " << info.max_faces_count;
+		//	cout << "The deep and low layer:  " << info.highest_layer << " " << info.lowest_layer << endl;
+		//cout << "The height " << octreeFace->find_tree_height();
+
+		begin = clock();
+		std::vector<vec> rays;
+		std::cout << std::endl << "computing the shape diameters using BVH: ";
+		int cal_count = 0;
+		int level_count = 0;
+		for (int i = 0; i < nv; i++) {
+			//---initialize the vertex, in normal and rays for SDF
+			vec inwardNormal = inwardNormals[i];
+			vec vertex = vertices[i];
+			vec normal = normals[i];
+			make_cone(vertex, inwardNormal, rays);
+
+
+			vector<float>distances;
+			//distances.resize(rays.size());
+			distances.clear();
+			for (int j = 0; j < rays.size(); j++) {
+				//Octree::Traversal_Info  info = k->find_cube_from_raycast(vertex, rays[j]);
+				BVH::Traversal_Info info = octreeFace->intersect_face_from_raycast(vertex, rays[j], normal);
+				float d_from_octree = info.closest_d;
+				cal_count += info.cal_count;
+				level_count += info.level_count;
+				if (d_from_octree != 0)
+					distances.push_back(d_from_octree);
+				//distances[j] = d_from_octree;
+			}
+			//const float* a = 
+			//	vec intersect(a[0], a[1], a[2]);
+
+			if (distances.size() == 0) {
+				sdf[i] = 0;
+			}
+			else {
+				//float median = sdf_stat_median(distances);
+				//float stdev = sdf_stat_stdev(distances);
+				sdf[i] = sdf_stat_mean(distances);
+			}
+			if (i % (nv / 10) == 0)
+				std::cout << "Finish " << i / (nv / 10) << "0% of ht SDF" << std::endl;
+		}
+		std::cout << double(clock() - begin) / CLOCKS_PER_SEC << " s" << std::endl;
+		//	std::cout << "The brute force calculation times: "<<nv*nf*81<<endl;
+		std::cout << "The faces traverse per ray and vertices " << cal_count / (nv * 81) << endl;
+	//	std::cout << "The levels traverse per ray and vertices " << level_count / (nv * 81) << endl;
+	}
+	void TriMesh::need_sdf_kd() {
+		if (sdf.size() == vertices.size())
+			return;
+		int nv = vertices.size();
+		int nf = faces.size();
+
+		sdf.resize(vertices.size());
+		std::clock_t begin = clock();
+		need_normals();
+		need_inwardNormals();
+		need_faceNormals();
+		need_faceMidPts();
+		//using the Vertices to build the Octree
+
+		//KDtree_face * octreeFace = new KDtree_face(faces, vertices, faceNormals);
+		KD_tree aaa;
+		trimesh::buildKDTree(aaa, faces, vertices, faceNormals);
+		int height = heightKD_Tree(aaa.root);
+		KD_tree_array * kd_array = KDTreeToArray(aaa);
+		len_tri(kd_array);
+
+
+		//	BVH::Tree_Info info = octreeFace->find_tree_info();
+		//	cout << "branch, leaves, correct size leaves :" << info.branch_count << " " << info.leaves_count << " " << info.equal_max_faces_count << endl;
+		//	cout << "The deep and low layer:  " << info.highest_layer << " " << info.lowest_layer << endl;
+		//cout << "The height " << octreeFace->find_tree_height();
+
+		begin = clock();
+		std::vector<vec> rays;
+		std::cout << std::endl << "computing the shape diameters using kdtree: ";
+		int cal_count = 0;
+		int level_count = 0;
+		int size0_count = 0;
+		for (int i = 0; i < nv; i++) {
+			//---initialize the vertex, in normal and rays for SDF
+			vec inwardNormal = inwardNormals[i];
+			vec vertex = vertices[i];
+			vec normal = normals[i];
+			make_cone(vertex, inwardNormal, rays);
+
+
+			vector<float>distances;
+			//distances.resize(rays.size());
+			distances.clear();
+			for (int j = 0; j < rays.size(); j++) {
+				//Octree::Traversal_Info  info = k->find_cube_from_raycast(vertex, rays[j]);
+				//KDtree_face::Traversal_Info info = octreeFace->intersect_face_from_raycast(vertex, rays[j], normal);
+				float d_from_octree;
+				//d_from_octree = info.closest_d;
+				d_from_octree = rayToFaces(kd_array, vertex, rays[j], normal);
+				//cal_count += info.cal_count;
+				//level_count += info.level_count;
+				if (d_from_octree > 0)
+					distances.push_back(d_from_octree);
+				//distances[j] = d_from_octree;
+			}
+			//const float* a = 
+			//	vec intersect(a[0], a[1], a[2]);
+
+			if (distances.size() == 0) {
+				size0_count++;
+				sdf[i] = 0;
+			}
+			else {
+				/*float median = sdf_stat_median(distances);
+				float stdev = sdf_stat_stdev(distances);
+
+				sdf[i] = sdf_stat_mean(distances, median, stdev);*/
+				sdf[i] = sdf_stat_mean(distances);
+			}
+			if (i % (nv / 10) == 0)
+				std::cout << "Finish " << i / (nv / 10) << "0% of ht SDF" << std::endl;
+		}
+		std::cout << double(clock() - begin) / CLOCKS_PER_SEC << " s" << std::endl;
+		cout << "size 0 is " << (float)size0_count  << endl;
+		//	std::cout << "The brute force calculation times: "<<nv*nf*81<<endl;
+		/*std::cout << "The faces traverse per ray and vertices " << cal_count / (nv * 81) << endl;
+		std::cout << "The levels traverse per ray and vertices " << level_count / (nv * 81) << endl;*/
+	}
 	void TriMesh::compare_sdfs()
 	{
 		int decimal = 3;
@@ -464,72 +576,19 @@ namespace trimesh {
 	}
 
 	void TriMesh::writeSDF() {
-		std::cout << "Writing curvature to sdf.csv" << std::endl;
+		std::cout << "Writing curvature to X_sdf.csv" << std::endl;
 		std::ofstream file;
-		file.open("sdf.csv");
+		char str[80];
+		strcpy(str, filename);
+		strcat(str, "_sdf.csv");
+		file.open(str);
 		file << "sdf" << "\n";
 		for (int i = 0; i < sdf.size(); i++) {
 			file << sdf[i] << "\n";
 		}
 		file.close();
 
-		file.open("sdf_brute.csv");
-		file << "sdf_brute" << "\n";
-		for (int i = 0; i < sdf.size(); i++) {
-			file << sdf_brute[i] << "\n";
-		}
-		file.close();
 	}
 
 
 }//end of namespace
-
-/*
-		need_normals();
-		need_inwardNormals();
-
-		need_faceNormals();
-		if (colors.size() == vertices.size())
-			return;
-		colors.resize(vertices.size());
-
-		int nv = vertices.size();
-		nv = 1;
-		int nf = faces.size();
-
-		std::vector<vec> rays;
-		for (int i = 0; i < nv; i++) {
-			//initialize the vertex, in normal and rays for SDF
-			vec inwardNormal = inwardNormals[i];
-			vec vertex = vertices[i];
-			make_cone(vertex, inwardNormal, rays);
-
-			float minDist = 0;
-			int faceId=0;
-			for (int j = 0; j < nf; j++) {
-				vec v1 = vertices[faces[j][0]]; vec v2 = vertices[faces[j][1]]; vec v3 = vertices[faces[j][2]];
-
-				float distance = triangle_inter(vertex, inwardNormal, v1, v2, v3);
-				if (distance != 0) {
-					if (minDist == 0) {
-						minDist = distance;
-						faceId = j;
-					}
-					else {
-						if (distance < minDist) {
-							minDist = distance;
-							faceId = j;
-						}
-					}
-				}
-
-			}
-			// the distant and faces
-			std::cout << "face number : " << faceId<< " distance: "<<minDist<<std::endl;
-			colors[faces[faceId][0]] = Color(0.0f, 1.0f, 0.0f);
-			colors[faces[faceId][1]] = Color(0.0f, 1.0f, 0.0f);
-			colors[faces[faceId][2]] = Color(0.0f, 1.0f, 0.0f);
-
-		}
-
-*/

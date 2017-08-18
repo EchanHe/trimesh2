@@ -6,6 +6,7 @@ TriMesh_io.cc
 Input and output of triangle meshes
 Can read: PLY (triangle mesh and range grid), OFF, OBJ, RAY, SM, 3DS, VVD, STL
 Can write: PLY (triangle mesh and range grid), OFF, OBJ, RAY, SM, STL, C++, DAE
+Can write the attributes.
 */
 
 #include <cstdio>
@@ -218,10 +219,10 @@ bool TriMesh::write(const ::std::string &filename)
 
 // Read a TriMesh from a file.  Defined to use a helper function to make
 // subclassing easier.
-TriMesh *TriMesh::read(const char *filename)
+TriMesh *TriMesh::read(char *filename)
 {
 	TriMesh *mesh = new TriMesh();
-
+	mesh->filename = filename;
 	if (read_helper(filename, mesh))
 		return mesh;
 
@@ -2482,6 +2483,12 @@ void TriMesh::eprintf(const char *format, ...)
 		fprintf(stderr, "%s", buf);
 		fflush(stderr);
 	}
+}
+
+void TriMesh::writeAttri() {
+	writeSDF();
+	writeCurvature();
+	writeLandMarks();
 }
 
 }; // namespace trimesh

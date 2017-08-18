@@ -355,15 +355,17 @@ void TriMesh::need_feature_points_curv_sdf_beak()
 	vector<int> index;
 
 	std::vector<float> temp;
-	float percent = 0.85;
+	float percent = 0.90;
 	int portion = (int)(percent*nv);
+
+	
 
 	//calculate mean curvature
 	float mean_meanCurv = stat(STAT_MEAN, STAT_MEAN_CURV);
 	float std_meanCurv = stat(STAT_STDEV, STAT_MEAN_CURV);
 	temp = mean_curv;
 	std::sort(temp.begin(), temp.end());
-	float mean_curv_lower_thre = temp[1 - portion];
+	float mean_curv_lower_thre = temp[nv - portion];
 	float mean_curv_upper_thre = temp[portion];
 	//calculate gaussian curvature
 	float mean_gausCurv = stat(STAT_MEAN, STAT_GAUS_CURV);
@@ -371,23 +373,28 @@ void TriMesh::need_feature_points_curv_sdf_beak()
 	temp = gaus_curv;
 	std::sort(temp.begin(), temp.end());
 	float gaus_curv_upper_thre = temp[portion];
-	float gaus_curv_lower_thre = temp[1 - portion];
+	float gaus_curv_lower_thre = temp[nv - portion];
 	//calculate SDF
 	//if (sdf.size() != 0) {
-	float percent2 = 0.8;
+	float percent2 = 0.95;
 	int portion2 = (int)(percent2*nv);
 
 
 	float mean_sdf = stat(STAT_MEAN, STAT_SDF);
 	float std_sdf = stat(STAT_STDEV, STAT_SDF);
 	float median_sdf = stat(STAT_MEDIAN, STAT_SDF);
-	float max_sdf = stat(STAT_MAX, STAT_SDF);
-	float min_sdf = stat(STAT_MIN, STAT_SDF);
+	/*float max_sdf = stat(STAT_MAX, STAT_SDF);
+	float min_sdf = stat(STAT_MIN, STAT_SDF);*/
 	temp = sdf;
 	std::sort(temp.begin(), temp.end());
 	float sdf_upper_thre = temp[portion2];
-	float sdf_lower_thre = temp[1 - portion2];
+	float sdf_lower_thre = temp[nv - portion2];
 	//}
+	cout << mean_gausCurv << "  " << std_gausCurv << endl;
+	cout << mean_meanCurv << "  " << std_meanCurv << endl;
+	cout << mean_curv_lower_thre << "  " << mean_curv_upper_thre << endl;
+	cout << gaus_curv_lower_thre << "  " << gaus_curv_upper_thre << endl;
+	cout << sdf_lower_thre << "  " << sdf_upper_thre << endl;
 
 
 	float min_meanCurv = mean_meanCurv - stdevN*std_meanCurv;
@@ -396,25 +403,26 @@ void TriMesh::need_feature_points_curv_sdf_beak()
 	float min_gausCurv = mean_gausCurv - stdevN*std_gausCurv;
 	float max_gausCurv = mean_gausCurv + stdevN*std_gausCurv;
 
-	/*float min_sdf = mean_sdf - stdevN*std_sdf;
-	float max_sdf = mean_sdf + stdevN*std_sdf;*/
+	float min_sdf = mean_sdf - stdevN*std_sdf;
+	float max_sdf = mean_sdf + stdevN*std_sdf;
 
 
 	std::vector<vec> results;
-	for (int i = 0; i < nv; i++) {
+	for (int i = 150000; i < nv; i++) {
 
-		//bool isPeak = (mean_curv[i] < 0 && mean_curv[i] < min_meanCurv) &&
-		//	(gaus_curv[i] > 0 && gaus_curv[i] > max_gausCurv) &&
-		//	(sdf[i]>sdf_thre);
+		bool isPit= mean_curv[i] < 0 && mean_curv[i]< mean_curv_lower_thre;
 
-		bool isPeak = (mean_curv[i] < 0 && mean_curv[i] < mean_curv_lower_thre) &&
-			(gaus_curv[i] > 0 && gaus_curv[i] > gaus_curv_upper_thre);
+		bool isPeak = (mean_curv[i] > 0);
+
+		bool isRavine = (mean_curv[i] > 0 && mean_curv[i] >mean_curv_upper_thre) &&
+			(gaus_curv[i] < 0 && gaus_curv[i]<gaus_curv_lower_thre);
 		//&&(sdf[i]>sdf_upper_thre);
 
 		bool isNarrow = sdf[i] < sdf_lower_thre;
 		bool isThick = sdf[i] > sdf_upper_thre;
-		bool isRavine = (mean_curv[i] > 0 && mean_curv[i] >mean_curv_upper_thre) &&
-			(gaus_curv[i] <= 0 && gaus_curv[i]<gaus_curv_lower_thre);
+		bool medium_size = sdf[i] < max_sdf && sdf[i]>min_sdf;
+
+
 
 		//bool isBeak = sdf[i]<mean_sdf + 2*std_sdf && sdf[i]> mean_sdf - 2*std_sdf;
 		bool isFeather = (sdf[i] < sdf_lower_thre && isPeak) && (sdf[i] > sdf_upper_thre && isRavine);
@@ -425,9 +433,12 @@ void TriMesh::need_feature_points_curv_sdf_beak()
 		//	index.push_back(i);
 		//}
 
-		if (isRavine && !isFeather) {
+		if (isPit && medium_size) {
 			results.push_back(vertices[i]);
 			index.push_back(i);
+		}
+		else if(isPeak && isNarrow) {
+			landmarks_2.push_back(vertices[i]);
 		}
 
 	}
@@ -438,5 +449,19 @@ void TriMesh::need_feature_points_curv_sdf_beak()
 	cout << endl << "Find " << landmarks.size() << " feature points using the " << 100 * percent << " % of the SDF, Mean Curv and Gaussian Curv" << endl;
 	return;
 
+}
+
+void TriMesh::writeLandMarks() {
+	std::cout << "Writing curvature to _LM.csv" << std::endl;
+	std::ofstream file;
+	char str[80];
+	strcpy(str, filename);
+	strcat(str, "_LM.csv");
+	file.open(str);
+	file << "x , y ,z" << "\n";
+	for (int i = 0; i < landmarks.size(); i++) {
+		file << landmarks[i][0] << "," << landmarks[i][1] << ","<<landmarks[i][2] << "\n";
+	}
+	file.close();
 }
 }; // namespace trimesh
