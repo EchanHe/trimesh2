@@ -1,6 +1,8 @@
 # TriMesh2 
 with GPU KD tree and Shape diameter funciton.
 
+gpu branch
+
 
 **TriMesh2:** C++ library and set of utilities for input, output, and basic manipulation of 3D triangle meshes
 
