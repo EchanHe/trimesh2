@@ -25,16 +25,13 @@ Simple viewer
 #include <GL/glut.h>
 
 //#include<omp.h>
-#include <boost\iterator\zip_iterator.hpp>
-#include <boost\tuple\tuple.hpp>
-#include <boost\tuple\tuple_io.hpp>
-#include <boost/foreach.hpp>
-#include <boost/range/combine.hpp>
+
 #include <fstream>
 
 
 #include "kdTree_face.h"
 #include "octree.h"
+#include "bvh.h"
 //#include<geodesic\geodesic_mesh_elements.h>
 //#include<geodesic\geodesic_constants_and_simple_functions.h>
 
@@ -74,15 +71,17 @@ bool draw_inwardNormals = true;
 bool draw_geo_distance = true;
 bool draw_feature = true;
 bool draw_RayCasting = false;
-bool draw_cone = false;
+bool draw_cone = true;
 bool draw_Octree = false;
 
 vec octRayO = vec(2,-0.5,-2);
 vec octRayDir = vec(-1,1,1);
-int octRay_index = 0;// 7999;// 49999;// 50000;
+int octRay_index = 1;// 7999;// 49999;// 50000;
 
 
 Octree* octree;
+BVH * bvh;
+BVH::Traversal_Info bvh_INFO;
 trimesh::Octree::Traversal_Info octRayInfo;
 
 
@@ -552,6 +551,15 @@ void drawFeaturePts(int i) {
 			glutSolidSphere(lmSize, 10, 10);
 			glPopMatrix();
 		}
+		for (int i = 0; i < m->landmarks_2.size(); i++) {
+			float x = m->landmarks_2[i][0]; float y = m->landmarks_2[i][1]; float z = m->landmarks_2[i][2];
+			glPushMatrix();
+
+			glColor3f(1.0, 0.0, 0.0);
+			glTranslatef(x, y, z);
+			glutSolidSphere(lmSize, 10, 10);
+			glPopMatrix();
+		}
 		//int nv = m->vertices.size();
 		//glPushMatrix();
 
@@ -565,20 +573,19 @@ void drawFeaturePts(int i) {
 }
 
 void drawRayCasting(int i) {
-	
 	if (draw_RayCasting) {
 
 		TriMesh * m = meshes[i];
-		
+
 		octRayO = m->vertices[octRay_index];
 		octRayDir = m->inwardNormals[octRay_index];
 
-		octRayInfo = octree->intersect_face_from_raycast(octRayO, octRayDir, octRayO);
+		bvh_INFO = bvh->intersect_face_from_raycast(octRayO, octRayDir, octRayO);
 		float point_scale = 100.0f;
-		
+
 		//draw ray
-		float scale = (m->bsphere.r*3);
-		vec end =  (octRayO + scale *octRayDir);
+		float scale = (m->bsphere.r * 3);
+		vec end = (octRayO + scale *octRayDir);
 
 		glPushMatrix();
 
@@ -595,47 +602,14 @@ void drawRayCasting(int i) {
 		glVertex3f(end[0], end[1], end[2]);
 		glEnd();
 		glPopMatrix();
-		
-		//---draw reverse ray, if neccessary
-		vec oRay = vec(octRayO[0], octRayO[1] , octRayO[2]); vec dirRay =  vec(octRayDir[0], octRayDir[1], octRayDir[2]);
-		if (octRayDir[0] < 0.0f) {
-			oRay[0] = m->bsphere.center[0]*2 - octRayO[0];
-			dirRay[0] = -octRayDir[0];
-		}
-		if (octRayDir[1] < 0.0f) {
-			oRay[1] = m->bsphere.center[1] * 2 - octRayO[1];
-			dirRay[1] = -octRayDir[1];
-		}
-		if (octRayDir[2] < 0.0f) {
-			oRay[2] = m->bsphere.center[2] * 2 - octRayO[2];
-			dirRay[2] = -octRayDir[2];
-		}
-		if (octRayDir[0] < 0.0f || octRayDir[1] < 0.0f || octRayDir[2] < 0.0f) {
-			end = (oRay + scale *dirRay);
-			glPushMatrix();
-
-			glColor3f(0.8, 0.0, 0.0);
-			glTranslatef(oRay[0], oRay[1], oRay[2]);
-			//glutSolidSphere(scale / point_scale, 10, 10);
-			glPopMatrix();
-
-			glPushMatrix();
-			glLineWidth(5.0);
-			glColor3f(0.1, 0.1, 0.5);
-			glBegin(GL_LINES);
-			glVertex3f(oRay[0], oRay[1], oRay[2]);
-			glVertex3f(end[0], end[1], end[2]);
-			glEnd();
-			glPopMatrix();
-		}
 
 		// draw out bounding box ray
 
-		end = (octRayInfo.vertex + scale * octRayInfo.ray);
+		end = (bvh_INFO.vertex + scale * bvh_INFO.ray);
 		glPushMatrix();
 
 		glColor3f(0.8, 0.0, 0.0);
-		glTranslatef(octRayInfo.vertex[0], octRayInfo.vertex[1], octRayInfo.vertex[2]);
+		glTranslatef(bvh_INFO.vertex[0], bvh_INFO.vertex[1], bvh_INFO.vertex[2]);
 		//glutSolidSphere(scale / point_scale, 10, 10);
 		glPopMatrix();
 
@@ -643,58 +617,23 @@ void drawRayCasting(int i) {
 		glLineWidth(5.0);
 		glColor3f(0.8, 0.0, 0.0);
 		glBegin(GL_LINES);
-		glVertex3f(octRayInfo.vertex[0], octRayInfo.vertex[1], octRayInfo.vertex[2]);
+		glVertex3f(bvh_INFO.vertex[0], bvh_INFO.vertex[1], bvh_INFO.vertex[2]);
 		glVertex3f(end[0], end[1], end[2]);
 		glEnd();
 		glPopMatrix();
 
 
-		////----draw bounding box
-		//float r = m->bsphere.r;
-		//vec center = m->bsphere.center;
-		////glPushMatrix();
-		////glTranslatef(center[0]+r/2, center[1], center[2]);
-		////glutWireCube(r);
-		////glPopMatrix();
-		//float x[8], y[8], z[8];
-		//for (int i = 0; i < 8; i++) {
-		//	if(i<=3)
-		//		x[i] = center[0] - r / 2;
-		//	else
-		//		x[i] = center[0] + r / 2;
-		//}
-		//y[0] = center[1] - r / 2; y[1] = center[1] - r / 2; y[4] = center[1] - r / 2; y[5] = center[1] - r / 2;
-		//y[2] = center[1] + r / 2; y[3] = center[1] + r / 2; y[6] = center[1] + r / 2; y[7] = center[1] + r / 2;
-
-		//z[0] = center[2] - r / 2; z[2] = center[2] - r / 2; z[4] = center[2] - r / 2; z[6] = center[2] - r / 2;
-		//z[1] = center[2] + r / 2; z[3] = center[1] + r / 2; z[5] = center[2] + r / 2; z[7] = center[2] + r / 2;
-		//double red[4], green[4];
-		//red[0] = 1.0; red[1] = 1.0; red[2] = 1.0; red[3] = 0.0;
-		//green[0] = 0.0; green[1] = 0.5; green[2] = 1.0; green[3] = 1.0;
-		//for (int i = 0; i < 8; i++) {
-
-		//	glPushMatrix();
-		//	if (i < 4) 
-		//		glColor3d(red[i], green[i], 0);
-		//	else
-		//		glColor3d(0, 0, 0);
-		//	glTranslatef(x[i], y[i], z[i]);
-		//	glutWireCube(r);
-		//	glPopMatrix();
-		//}
-
-
 		//--- draw nodes with ray crossing
-		for (int i = 0; i < octRayInfo.bBox_maxs.size(); i++) {
-			float dx = octRayInfo.bBox_maxs[i][0] - octRayInfo.bBox_mins[i][0];
-			float dy = octRayInfo.bBox_maxs[i][1] - octRayInfo.bBox_mins[i][1];
-			float dz = octRayInfo.bBox_maxs[i][2] - octRayInfo.bBox_mins[i][2];
+		for (int i = 0; i < bvh_INFO.bBox_maxs.size(); i++) {
+			float dx = bvh_INFO.bBox_maxs[i][0] - bvh_INFO.bBox_mins[i][0];
+			float dy = bvh_INFO.bBox_maxs[i][1] - bvh_INFO.bBox_mins[i][1];
+			float dz = bvh_INFO.bBox_maxs[i][2] - bvh_INFO.bBox_mins[i][2];
 
-			float cx = (octRayInfo.bBox_maxs[i][0] + octRayInfo.bBox_mins[i][0]) / 2;
-			float cy = (octRayInfo.bBox_maxs[i][1] + octRayInfo.bBox_mins[i][1]) / 2;
-			float cz = (octRayInfo.bBox_maxs[i][2] + octRayInfo.bBox_mins[i][2]) / 2;
+			float cx = (bvh_INFO.bBox_maxs[i][0] + bvh_INFO.bBox_mins[i][0]) / 2;
+			float cy = (bvh_INFO.bBox_maxs[i][1] + bvh_INFO.bBox_mins[i][1]) / 2;
+			float cz = (bvh_INFO.bBox_maxs[i][2] + bvh_INFO.bBox_mins[i][2]) / 2;
 			glPushMatrix();
-			glColor3d(0,0, 0);
+			glColor3d(0, 0, 0);
 			glTranslatef(cx, cy, cz);
 			glScalef(dx, dy, dz);
 			glutWireCube(1);
@@ -702,6 +641,144 @@ void drawRayCasting(int i) {
 		}
 
 	}
+	//----draw raycast of octree
+
+	//if (draw_RayCasting) {
+
+	//	TriMesh * m = meshes[i];
+	//	
+	//	octRayO = m->vertices[octRay_index];
+	//	octRayDir = m->inwardNormals[octRay_index];
+
+	//	octRayInfo = octree->intersect_face_from_raycast(octRayO, octRayDir, octRayO);
+	//	float point_scale = 100.0f;
+	//	
+	//	//draw ray
+	//	float scale = (m->bsphere.r*3);
+	//	vec end =  (octRayO + scale *octRayDir);
+
+	//	glPushMatrix();
+
+	//	glColor3f(0.8, 0.0, 0.0);
+	//	glTranslatef(octRayO[0], octRayO[1], octRayO[2]);
+	//	//glutSolidSphere(scale/ point_scale, 10, 10);
+	//	glPopMatrix();
+
+	//	glPushMatrix();
+	//	glLineWidth(5.0);
+	//	glColor3f(0.1, 0.5, 0.1);
+	//	glBegin(GL_LINES);
+	//	glVertex3f(octRayO[0], octRayO[1], octRayO[2]);
+	//	glVertex3f(end[0], end[1], end[2]);
+	//	glEnd();
+	//	glPopMatrix();
+	//	
+	//	//---draw reverse ray, if neccessary
+	//	vec oRay = vec(octRayO[0], octRayO[1] , octRayO[2]); vec dirRay =  vec(octRayDir[0], octRayDir[1], octRayDir[2]);
+	//	if (octRayDir[0] < 0.0f) {
+	//		oRay[0] = m->bsphere.center[0]*2 - octRayO[0];
+	//		dirRay[0] = -octRayDir[0];
+	//	}
+	//	if (octRayDir[1] < 0.0f) {
+	//		oRay[1] = m->bsphere.center[1] * 2 - octRayO[1];
+	//		dirRay[1] = -octRayDir[1];
+	//	}
+	//	if (octRayDir[2] < 0.0f) {
+	//		oRay[2] = m->bsphere.center[2] * 2 - octRayO[2];
+	//		dirRay[2] = -octRayDir[2];
+	//	}
+	//	if (octRayDir[0] < 0.0f || octRayDir[1] < 0.0f || octRayDir[2] < 0.0f) {
+	//		end = (oRay + scale *dirRay);
+	//		glPushMatrix();
+
+	//		glColor3f(0.8, 0.0, 0.0);
+	//		glTranslatef(oRay[0], oRay[1], oRay[2]);
+	//		//glutSolidSphere(scale / point_scale, 10, 10);
+	//		glPopMatrix();
+
+	//		glPushMatrix();
+	//		glLineWidth(5.0);
+	//		glColor3f(0.1, 0.1, 0.5);
+	//		glBegin(GL_LINES);
+	//		glVertex3f(oRay[0], oRay[1], oRay[2]);
+	//		glVertex3f(end[0], end[1], end[2]);
+	//		glEnd();
+	//		glPopMatrix();
+	//	}
+
+	//	// draw out bounding box ray
+
+	//	end = (octRayInfo.vertex + scale * octRayInfo.ray);
+	//	glPushMatrix();
+
+	//	glColor3f(0.8, 0.0, 0.0);
+	//	glTranslatef(octRayInfo.vertex[0], octRayInfo.vertex[1], octRayInfo.vertex[2]);
+	//	//glutSolidSphere(scale / point_scale, 10, 10);
+	//	glPopMatrix();
+
+	//	glPushMatrix();
+	//	glLineWidth(5.0);
+	//	glColor3f(0.8, 0.0, 0.0);
+	//	glBegin(GL_LINES);
+	//	glVertex3f(octRayInfo.vertex[0], octRayInfo.vertex[1], octRayInfo.vertex[2]);
+	//	glVertex3f(end[0], end[1], end[2]);
+	//	glEnd();
+	//	glPopMatrix();
+
+
+	//	////----draw bounding box
+	//	//float r = m->bsphere.r;
+	//	//vec center = m->bsphere.center;
+	//	////glPushMatrix();
+	//	////glTranslatef(center[0]+r/2, center[1], center[2]);
+	//	////glutWireCube(r);
+	//	////glPopMatrix();
+	//	//float x[8], y[8], z[8];
+	//	//for (int i = 0; i < 8; i++) {
+	//	//	if(i<=3)
+	//	//		x[i] = center[0] - r / 2;
+	//	//	else
+	//	//		x[i] = center[0] + r / 2;
+	//	//}
+	//	//y[0] = center[1] - r / 2; y[1] = center[1] - r / 2; y[4] = center[1] - r / 2; y[5] = center[1] - r / 2;
+	//	//y[2] = center[1] + r / 2; y[3] = center[1] + r / 2; y[6] = center[1] + r / 2; y[7] = center[1] + r / 2;
+
+	//	//z[0] = center[2] - r / 2; z[2] = center[2] - r / 2; z[4] = center[2] - r / 2; z[6] = center[2] - r / 2;
+	//	//z[1] = center[2] + r / 2; z[3] = center[1] + r / 2; z[5] = center[2] + r / 2; z[7] = center[2] + r / 2;
+	//	//double red[4], green[4];
+	//	//red[0] = 1.0; red[1] = 1.0; red[2] = 1.0; red[3] = 0.0;
+	//	//green[0] = 0.0; green[1] = 0.5; green[2] = 1.0; green[3] = 1.0;
+	//	//for (int i = 0; i < 8; i++) {
+
+	//	//	glPushMatrix();
+	//	//	if (i < 4) 
+	//	//		glColor3d(red[i], green[i], 0);
+	//	//	else
+	//	//		glColor3d(0, 0, 0);
+	//	//	glTranslatef(x[i], y[i], z[i]);
+	//	//	glutWireCube(r);
+	//	//	glPopMatrix();
+	//	//}
+
+
+	//	//--- draw nodes with ray crossing
+	//	for (int i = 0; i < octRayInfo.bBox_maxs.size(); i++) {
+	//		float dx = octRayInfo.bBox_maxs[i][0] - octRayInfo.bBox_mins[i][0];
+	//		float dy = octRayInfo.bBox_maxs[i][1] - octRayInfo.bBox_mins[i][1];
+	//		float dz = octRayInfo.bBox_maxs[i][2] - octRayInfo.bBox_mins[i][2];
+
+	//		float cx = (octRayInfo.bBox_maxs[i][0] + octRayInfo.bBox_mins[i][0]) / 2;
+	//		float cy = (octRayInfo.bBox_maxs[i][1] + octRayInfo.bBox_mins[i][1]) / 2;
+	//		float cz = (octRayInfo.bBox_maxs[i][2] + octRayInfo.bBox_mins[i][2]) / 2;
+	//		glPushMatrix();
+	//		glColor3d(0,0, 0);
+	//		glTranslatef(cx, cy, cz);
+	//		glScalef(dx, dy, dz);
+	//		glutWireCube(1);
+	//		glPopMatrix();
+	//	}
+
+	//}
 }
 
 void drawOctree(int i) {
@@ -1121,6 +1198,8 @@ void readMesh(int file_index) {
 	filenames.push_back(filenames_input[file_index]);
 }
 
+int mesh_attri_index = 0;
+const int attriN = 3;
 
 // Keyboard
 #define Ctrl (1-'a')
@@ -1197,16 +1276,34 @@ void keyboardfunc(unsigned char key, int, int)
 			//octRayDir = rotation(octRayDir, -10, vec(0, 1, 0));; break;
 		}
 		case '>': {
-			//octRay_index = (octRay_index + 1) % meshes[0]->vertices.size();
-			readMesh((file_index++)%fileN);
+			octRay_index = (octRay_index + 1) % meshes[0]->vertices.size();
+			//readMesh((file_index++)%fileN);
 			break;
 			//octRayDir = rotation(octRayDir, -10, vec(0, 1, 0));; break;
 		}
 		case '<': {
 			//octRay_index = (octRay_index - 1) % meshes[0]->vertices.size();
-			readMesh((file_index--) % fileN);
+		//	readMesh((file_index--) % fileN);
 			break;
 			//octRayDir = rotation(octRayDir, -10, vec(0, 1, 0));; break;
+		}
+		case'c': {
+			mesh_attri_index = (mesh_attri_index +1) % attriN;
+			meshes[0]->colors.clear();
+			switch (mesh_attri_index) {
+			case 0:		
+				cout << "showing gaussian curv ..." << endl;
+				meshes[0]->color_vertex(meshes[0]->gaus_curv, true);
+				break;
+			case 1:
+				cout << "showing mean curv ..." << endl;
+				meshes[0]->color_vertex(meshes[0]->mean_curv, true);
+				break;
+			case 2:
+				cout << "showing shape diameter function ..." << endl;
+				meshes[0]->color_vertex(meshes[0]->sdf, true);
+				break;
+			}
 		}
 		default:
 			if (key >= '1' && key <= '9') {
@@ -1240,24 +1337,23 @@ int main(int argc, char *argv[])
 			grab_only = true;
 			continue;
 		}
-		const char *filename = argv[i];
+		char *filename = argv[i];
 		//filename = "..\\..\\..\\data\\torus_sdf.ply";
 		//filename = "..\\..\\..\\data\\external_surface_only.ply";
-		filename = "..\\..\\..\\data\\bird_one_component_sdf.ply";
-	//	filename = "..\\..\\..\\data\\beak_sdf2.ply";
+	//	filename = "..\\..\\..\\data\\bird_one_component_sdf.ply";
+	//	filename = "..\\..\\..\\data\\beak_sdf3.ply";
 		filename = "..\\..\\..\\data\\torus2.ply";
-		filename = "..\\..\\..\\data\\cow2.ply";
-//filename = "..\\..\\..\\data\\elephant.off";
-//	//	//filename = "..\\..\\..\\data\\cube.ply";
-filename = "..\\..\\..\\data\\l_leg_50.ply";
-//filename = "..\\..\\..\\data\\frog.ply";
+		//filename = "..\\..\\..\\data\\cow2.ply";
+	//filename = "..\\..\\..\\data\\elephant.off";
+	//	filename = "..\\..\\..\\data\\cube.ply";
+	//filename = "..\\..\\..\\data\\Armadillo.ply";
+	//filename = "..\\..\\..\\data\\frog.ply";
 //		filename = "..\\..\\..\\data\\2934_smooth_sdf.ply";
-	//	filename = "..\\..\\..\\data\\bird_one_component_simple.ply";
+	//	filename = "..\\..\\..\\data\\Armadillo.ply";
 	//	const char *filename_simple = "..\\..\\..\\data\\bird_one_component_simple_1.ply";
 		TriMesh *themesh = TriMesh::read(filename);
 		//TriMesh *simple = TriMesh::read(filename);
 		//simple->need_faceNormals();
-
 
 		if (!themesh)
 			usage(argv[0]);
@@ -1283,13 +1379,25 @@ filename = "..\\..\\..\\data\\l_leg_50.ply";
 		themesh->need_neighbors();
 
 		themesh->need_curvatures();
-		//themesh->need_agd();
 
+
+		//KDtree_face * kdface_tree = new KDtree_face(themesh->faces, themesh->vertices, themesh->faceNormals);
+		//kdface_tree->intersect_face_from_raycast(themesh->vertices[1], themesh->inwardNormals[1], themesh->normals[1]);
+
+
+		//KD_tree aaa;
+		//trimesh::buildKDTree(aaa, themesh->faces, themesh->vertices, themesh->faceNormals);
+		//int height = heightKD_Tree(aaa.root);
+		//KD_tree_array * kd_array =  KDTreeToArray(aaa);
+		//rayToFaces(kd_array , themesh->vertices[1] , themesh->inwardNormals[1],themesh->normals[1]);
+		
+	
+		themesh->need_sdf_bvh();
 		//test octree
 
 		//octree = new Octree(themesh->vertices, 1);
-	/*	Octree * octreeFace = new Octree(themesh->faces, themesh->vertices, themesh->faceNormals);
-		octRayInfo = octreeFace->intersect_face_from_raycast(themesh->vertices[0], themesh->inwardNormals[0], themesh->normals[0]);
+	//	Octree * octreeFace = new Octree(themesh->faces, themesh->vertices, themesh->faceNormals);
+	/*	octRayInfo = octreeFace->intersect_face_from_raycast(themesh->vertices[0], themesh->inwardNormals[0], themesh->normals[0]);
 */
 		//octree = new Octree(themesh->faces, themesh->vertices, themesh->faceNormals);
 		//Octree::Node * a =octree->getRoot();
@@ -1301,7 +1409,7 @@ filename = "..\\..\\..\\data\\l_leg_50.ply";
 		//octRayInfo = octree->find_cube_from_raycast(themesh->vertices[0], themesh->inwardNormals[0]);
 	//	octRayInfo = octree->find_cube_from_raycast(octRayO, octRayDir);
 		//themesh->need_sdf_from_simple(simple);
-		themesh->need_sdf_octree();
+	//themesh->need_sdf_octree();
 	//	themesh->compare_sdfs();
 		//themesh->writeSDF();
 		
@@ -1312,7 +1420,14 @@ filename = "..\\..\\..\\data\\l_leg_50.ply";
 		//themesh->colors[themesh->faces[5500][1]] = Color(1.0, 0.0, 0.0);
 		//themesh->colors[themesh->faces[5500][2]] = Color(1.0, 0.0, 0.0);
 
+		//bvh = new BVH(themesh->faces, themesh->vertices, themesh->faceNormals);
+		//BVH::Tree_Info b_info = bvh->find_tree_info();
 
+		//themesh->need_sdf_bvh();
+		//themesh->need_sdf_kd();
+		//themesh->sdf.clear();
+		//themesh->need_sdf_octree();
+		//b->intersect_face_from_raycast(themesh->vertices[0], themesh->inwardNormals[0] , themesh->normals[0]);
 
 		//------FEATURES EXTRACTION
 		//Assign the Vertex quality to sdf
@@ -1320,7 +1435,7 @@ filename = "..\\..\\..\\data\\l_leg_50.ply";
 		//	themesh->sdf = themesh->quality;
 		//}
 		
-	//	themesh->need_feature_points_curv_sdf();
+		themesh->need_feature_points_curv_sdf_beak();
 		//std::cout << "The size of feature points :" << themesh->landmarkID.size() << endl;
 		//std::cout << "colors? :" << themesh->colors.size() << endl;
 
@@ -1329,13 +1444,16 @@ filename = "..\\..\\..\\data\\l_leg_50.ply";
 		//themesh->color_vertex(themesh->landmarkID);
 		//themesh->color_vertex(themesh->quality);
 		//themesh->color_vertex(themesh->sdf_brute,false);
+	/*	themesh->color_vertex(themesh->gaus_curv, true);
+		themesh->color_vertex(themesh->mean_curv, true);*/
 		themesh->color_vertex(themesh->sdf, false);
 		//cout << themesh->curv1[0];
 		//calculate the color
 
+		themesh->writeAttri();
 
 		//cout << compSizes[0];
-
+		
 		meshes.push_back(themesh);
 		xforms.push_back(xform());
 		visible.push_back(true);

@@ -76,6 +76,8 @@ public:
 	//
 	// Members
 	//
+	//file name
+	char *filename;
 
 	// The basics: vertices and faces
 	::std::vector<point> vertices;
@@ -119,6 +121,7 @@ public:
 	//possible landmarks
 	::std::vector<vec>landmarks;
 	::std::vector<int>landmarkID;
+	::std::vector<vec>landmarks_2;
 
 	// Bounding structures
 	box bbox;
@@ -157,8 +160,8 @@ public:
 
 	void need_pointareas();
 	void need_curvatures();
-	void need_curvatures_color();
-	void need_curvatures_threshold_color();
+
+
 	void need_dcurv();
 	void need_bbox();
 	void need_bsphere();
@@ -173,12 +176,16 @@ public:
 
 	void need_agd();
 
-	void need_sdf();
+	//void need_sdf();
 	void need_sdf_brute();
 	void TriMesh::need_sdf_from_simple(TriMesh *simple);
 	void need_sdf_octree();
+	void need_sdf_bvh();
+	void need_sdf_kd();
 	void compare_sdfs();
 	void writeSDF();
+	void writeAttri();
+	void writeLandMarks();
 	//template<class T>
 	void TriMesh::color_vertex(::std::vector<float> attri, bool optimized = true);
 	void TriMesh::color_vertex(::std::vector<int> index);
@@ -206,7 +213,7 @@ public:
 protected:
 	static bool read_helper(const char *filename, TriMesh *mesh);
 public:
-	static TriMesh *read(const char *filename);
+	static TriMesh *read(char *filename);
 	static TriMesh *read(const ::std::string &filename);
 	bool write(const char *filename);
 	bool write(const ::std::string &filename);

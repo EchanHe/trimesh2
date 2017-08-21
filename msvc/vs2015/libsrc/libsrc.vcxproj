@@ -159,6 +159,7 @@
   <ItemGroup>
     <ClInclude Include="..\..\..\include\Box.h" />
     <ClInclude Include="..\..\..\include\bsphere.h" />
+    <ClInclude Include="..\..\..\include\bvh.h" />
     <ClInclude Include="..\..\..\include\Color.h" />
     <ClInclude Include="..\..\..\include\GLCamera.h" />
     <ClInclude Include="..\..\..\include\GL\freeglut.h" />
@@ -181,6 +182,7 @@
     <ClInclude Include="..\..\..\include\XForm.h" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="..\..\..\libsrc\bvh.cpp" />
     <ClCompile Include="..\..\..\libsrc\conn_comps.cc" />
     <ClCompile Include="..\..\..\libsrc\diffuse.cc" />
     <ClCompile Include="..\..\..\libsrc\edgeflip.cc" />

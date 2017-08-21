@@ -27,7 +27,6 @@ namespace trimesh {
 			vec max;
 			vec min;
 			float closest_d;
-			int level;
 			int iChild;
 			int faceID=-1;
 			size_t k;
@@ -39,14 +38,18 @@ namespace trimesh {
 			vec ray;
 			//float origin_t;
 			int cal_count = 0;// the times for counting.
-			int equal_max_faces_count = 0;
-			int leaves_count = 0;
-			int branch_count = 0;
+			int level_count = 0;
 			//vector<pt_with_d> knn;
 		};
 		
-		const static bool interNode = true;
-
+		struct Tree_Info {
+			int highest_layer;
+			int lowest_layer;
+			int equal_max_faces_count = 0;
+			int leaves_count = 0;
+			int branch_count = 0;
+		};
+		const static bool INTER_NODE = true;
 		const static int MAX_PTS_PER_NODE=10;
 
 		const static int MAX_FACES_PER_NODE = 2;
@@ -111,6 +114,11 @@ namespace trimesh {
 		Node * getRoot();
 
 		Traversal_Info find_all_leaves();
+		Tree_Info find_tree_info();
+		int find_tree_height() {
+			return node_height(root);
+		}
+		int node_height(Node* node);
 
 	};
 
