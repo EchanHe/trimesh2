@@ -506,10 +506,10 @@ void noisify(TriMesh *mesh, float amount)
 		mesh->vertices[i] += disp[i];
 }
 
-template<class Points, class Faces>
-void cal_geo_dis(Points points, Faces faces) {
-	geodesic::Mesh mesh;
-	mesh.initialize_mesh_data(points, faces);
-}
+//template<class Points, class Faces>
+//void cal_geo_dis(Points points, Faces faces) {
+//	geodesic::Mesh mesh;
+//	mesh.initialize_mesh_data(points, faces);
+//}
 
 }; // namespace trimesh

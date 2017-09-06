@@ -376,7 +376,7 @@ void TriMesh::need_feature_points_curv_sdf_beak()
 	float gaus_curv_lower_thre = temp[nv - portion];
 	//calculate SDF
 	//if (sdf.size() != 0) {
-	float percent2 = 0.95;
+	float percent2 = 0.90;
 	int portion2 = (int)(percent2*nv);
 
 
@@ -408,11 +408,11 @@ void TriMesh::need_feature_points_curv_sdf_beak()
 
 
 	std::vector<vec> results;
-	for (int i = 150000; i < nv; i++) {
+	for (int i = 0; i < nv; i++) {
 
-		bool isPit= mean_curv[i] < 0 && mean_curv[i]< mean_curv_lower_thre;
-
-		bool isPeak = (mean_curv[i] > 0);
+		bool isPit= (mean_curv[i] < 0 && mean_curv[i]< mean_curv_lower_thre) && (gaus_curv[i]<0);
+		
+		bool isPeak = (mean_curv[i] > 0);// && (gaus_curv[i] > 0);
 
 		bool isRavine = (mean_curv[i] > 0 && mean_curv[i] >mean_curv_upper_thre) &&
 			(gaus_curv[i] < 0 && gaus_curv[i]<gaus_curv_lower_thre);
@@ -445,8 +445,12 @@ void TriMesh::need_feature_points_curv_sdf_beak()
 
 	landmarks = results;
 	landmarkID = index;
-
-	cout << endl << "Find " << landmarks.size() << " feature points using the " << 100 * percent << " % of the SDF, Mean Curv and Gaussian Curv" << endl;
+	cout<<"Use "<<100 * percent << " % of the SDF, Mean Curv and Gaussian Curv" << endl;
+	cout << endl << "Find landmark 1: " << landmarks.size() << endl;
+	if (landmarks_2.size() > 0) {
+		cout << endl << "Find landmark 2: " << landmarks_2.size() << endl;
+	}
+	
 	return;
 
 }
@@ -464,4 +468,102 @@ void TriMesh::writeLandMarks() {
 	}
 	file.close();
 }
+
+void TriMesh::need_k_mean(int k) {
+
+	int nLM = landmarks_2.size();
+	//int nLM = vertices.size();
+	
+	vector<int> lm_id(nLM);
+	std::iota(lm_id.begin(), lm_id.end(), 0);
+	random_shuffle(lm_id.begin(), lm_id.end());
+	vector<int> k_id(lm_id.begin(), lm_id.begin()+k);
+	vector<vector<int>> cluster_id(k);
+	vector<vector<vec>> cluster_vertices(k);
+	vector<vec> cluster_mean(k);
+	for (int i = 0; i < k; i++) {
+		cluster_mean[i] = landmarks_2[k_id[i]];
+	}
+	float obj = 0;
+	//for (int i = 0; i < nLM; i++) {
+	//	int final_id = 0;
+	//	float min_d;
+	//	for (int j = 0; j < k; j++) {
+	//		float d=dist(vertices[i], cluster_mean[j]);
+	//		if (j == 0) {
+	//			final_id = 0;
+	//			min_d = d;
+	//		}
+	//		else if (d < min_d) {
+	//			final_id = j;
+	//			min_d = d;
+	//		}
+	//	}
+	//	obj += min_d;
+	//	cluster_id[final_id].push_back(i);
+	//	cluster_vertices[final_id].push_back(vertices[i]);
+	//}
+	//for (int i = 0; i < k; i++) {
+	//	float sumX = 0, sumY = 0, sumZ = 0;
+	//	int size_per_cluster = cluster_vertices[i].size();
+	//	for (int j = 0; j < size_per_cluster; j++) {
+	//		sumX += cluster_vertices[i][j][0];
+	//		sumY += cluster_vertices[i][j][1];
+	//		sumZ += cluster_vertices[i][j][2];
+	//	}
+	//	cluster_mean[i] = vec(sumX / size_per_cluster, sumY / size_per_cluster, sumZ / size_per_cluster);
+
+	//}
+	float prev_obj = obj;
+	do {
+		//init
+		prev_obj = obj;
+		obj = 0;
+		for (int i = 0; i < k; i++) {
+			cluster_vertices[i].clear();
+		}
+		//end init
+		for (int i = 0; i < nLM; i++) {
+			int final_id = 0;
+			float min_d;
+			for (int j = 0; j < k; j++) {
+				//float d = dist(vertices[i], cluster_mean[j]);
+				float d = dist(landmarks_2[i], cluster_mean[j]);
+
+				if (j == 0) {
+					final_id = 0;
+					min_d = d;
+				}
+				else if (d < min_d) {
+					final_id = j;
+					min_d = d;
+				}
+			}
+			obj += min_d;
+			cluster_id[final_id].push_back(i);
+			cluster_vertices[final_id].push_back(landmarks_2[i]);
+		}
+		for (int i = 0; i < k; i++) {
+			float sumX = 0, sumY = 0, sumZ = 0;
+			int size_per_cluster = cluster_vertices[i].size();
+			for (int j = 0; j < size_per_cluster; j++) {
+				sumX += cluster_vertices[i][j][0];
+				sumY += cluster_vertices[i][j][1];
+				sumZ += cluster_vertices[i][j][2];
+			}
+			cluster_mean[i] = vec(sumX / size_per_cluster, sumY / size_per_cluster, sumZ / size_per_cluster);
+		}
+		cout << obj << " " << prev_obj << endl;
+	} while (obj != prev_obj);
+	clustered_LM.resize(k);
+	clustered_LM_mean.resize(k);
+	for (int i = 0; i < k; i++) {
+		clustered_LM[i] = cluster_vertices[i];
+		clustered_LM_mean[i] = cluster_mean[i];
+		//for (int j = 0; j < cluster_vertices[i].size(); j++) {
+		//	clustered_LM[i][j] = cluster_vertices[i][j];
+		//}
+	}
+}
+
 }; // namespace trimesh

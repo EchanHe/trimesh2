@@ -13,11 +13,25 @@ Class for triangle meshes.
 #include <vector>
 #include <string>
 #include<ctime>
+#include "cuda_runtime.h"
 #ifndef M_PIf
 # define M_PIf 3.1415927f
 #endif
 
 namespace trimesh {
+	//GPU define
+#define gpuErrchk(ans) { gpuAssert((ans), __FILE__, __LINE__); }
+
+	inline void gpuAssert(cudaError_t code, char *file, int line, bool abort = true)
+	{
+		if (code != cudaSuccess)
+		{
+			fprintf(stderr, "GPUassert: %s %s %dn\n", cudaGetErrorString(code), file, line);
+			//if (abort) { getch(); exit(code); }
+		}
+	}
+	//void vec_to_pointer(std::vector<vec>input, float** result);
+
 
 class TriMesh {
 public:
@@ -105,6 +119,7 @@ public:
 	//yichen he mean and gaussian curvature
 
 	::std::vector<float> mean_curv, gaus_curv;
+	::std::vector<float> shape_index;
 
 	::std::vector<float> curv1, curv2;
 	::std::vector< Vec<4,float> > dcurv;
@@ -114,6 +129,8 @@ public:
 	//shape diameter function
 	::std::vector<float> sdf;
 	::std::vector<float> sdf_brute;
+	::std::vector<float> sdf_brute_gpu;
+	::std::vector<float> sdf_gpu;
 	::std::vector<float> quality;
 	//average geodesic distance
 	::std::vector<float> AGDs;
@@ -123,6 +140,9 @@ public:
 	::std::vector<int>landmarkID;
 	::std::vector<vec>landmarks_2;
 
+	//cluster variables
+	::std::vector<::std::vector<vec>> clustered_LM;
+	::std::vector<vec> clustered_LM_mean;
 	// Bounding structures
 	box bbox;
 	BSphere bsphere;
@@ -173,10 +193,14 @@ public:
 	void remove_outlier(StatVal val);
 	void need_feature_points_curv_sdf();
 	void TriMesh::need_feature_points_curv_sdf_beak();
+	void need_k_mean(int k);
 
 	void need_agd();
 
 	//void need_sdf();
+	void need_sdf_gpu_1D();
+	void need_sdf_kd_tree_gpu();
+
 	void need_sdf_brute();
 	void TriMesh::need_sdf_from_simple(TriMesh *simple);
 	void need_sdf_octree();
@@ -189,7 +213,7 @@ public:
 	//template<class T>
 	void TriMesh::color_vertex(::std::vector<float> attri, bool optimized = true);
 	void TriMesh::color_vertex(::std::vector<int> index);
-
+	void TriMesh::color_shape_index();
 
 	//
 	// Delete everything

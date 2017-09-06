@@ -54,6 +54,20 @@ namespace trimesh {
 		vector<vector<float>> fNomarlZ;
 
 		vector<float> pt1X_1d;
+		vector<float> pt1Y_1d;
+		vector<float> pt1Z_1d;
+
+		vector<float> pt2X_1d;
+		vector<float> pt2Y_1d;
+		vector<float> pt2Z_1d;
+
+		vector<float> pt3X_1d;
+		vector<float> pt3Y_1d;
+		vector<float> pt3Z_1d;
+
+		vector<float> fNomarlX_1d;
+		vector<float> fNomarlY_1d;
+		vector<float> fNomarlZ_1d;
 		KD_tree_array(int n) {
 			pt1X.resize(n); pt1Y.resize(n);pt1Z.resize(n);
 			pt2X.resize(n);pt2Y.resize(n);pt2Z.resize(n);
@@ -73,7 +87,7 @@ namespace trimesh {
 	void printGivenLevel(KD_Node* node, int level);
 
 	KD_tree_array* KDTreeToArray(KD_tree tree);
-	void KDTreeToArrayPerLevel(KD_Node* node, int level  );
+
 	//void cal_sdf_on_node();
 	void kd_to_array(KD_tree_array * kdArray, KD_Node* node , int index);
 
@@ -144,6 +158,8 @@ namespace trimesh {
 		~KDtree_face();
 
 		Tree_Info find_tree_info();
+		Traversal_Info find_all_bbox();
+
 		Traversal_Info intersect_face_from_raycast(float * p, float * dir,
 			const float * pNormal);
 	};

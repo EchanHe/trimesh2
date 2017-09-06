@@ -228,13 +228,13 @@ inline void Mesh::build_adjacencies()
 		{
 			++number_of_edges;
 		}
-		else
-		{
-			if(i<half_edges.size()-1)		//sanity check: there should be at most two equal half-edges
-			{								//if it fails, most likely the input data are messed up
-				assert(half_edges[i] != half_edges[i+1]);
-			}
-		}
+		//else
+		//{
+		//	if(i<half_edges.size()-1)		//sanity check: there should be at most two equal half-edges
+		//	{								//if it fails, most likely the input data are messed up
+		//		assert(half_edges[i] != half_edges[i+1]);
+		//	}
+		//}
 	}
 
 	//		Edges->adjacent Vertices and Faces

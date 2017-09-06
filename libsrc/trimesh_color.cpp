@@ -4,9 +4,6 @@
 
 namespace trimesh {
 	void TriMesh::color_vertex(::std::vector<float> attri , bool optimized /*= true*/) {
-	
-
-
 		int nv = vertices.size();
 		if (nv != attri.size())
 			return;
@@ -44,6 +41,7 @@ namespace trimesh {
 			}
 			min = *std::min_element(temp2.begin(), temp2.end());
 			max = *std::max_element(temp2.begin(), temp2.end());
+			//	std::cout << "color max min: " << min << " " << max << std::endl;
 		}
 		else {
 			//auto min = std::min_element(attri.begin(), attri.end());
@@ -66,6 +64,24 @@ namespace trimesh {
 				colors[i] = Color(1 - intensity * 2, intensity * 2, 0.0f);
 			else
 				colors[i] = Color(0.0f, 1 - (intensity - 0.5f) * 2, (intensity - 0.5f) * 2);
+		}
+	}
+
+	void TriMesh::color_shape_index() {
+		int nv = vertices.size();
+		if (shape_index.size() == 0)
+			return;
+		if (colors.size() == vertices.size())
+			return;
+		colors.resize(nv);
+
+		for (int i = 0; i < nv; i++) {
+			if(shape_index[i]>0.9)
+				colors[i] = Color(0.0, 0.0, 1.0);
+			else if (shape_index[i]<-0.9)
+				colors[i] = Color(1.0, 0.0, 0.0);
+			else 
+				colors[i] = Color(0.0, 1.0, 0.0);
 		}
 	}
 

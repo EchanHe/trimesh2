@@ -353,7 +353,14 @@ namespace trimesh {
 		for (i = 1; i <= h; i++)
 			printGivenLevel(root, i);
 	}
+	//void find_all_bbox(KD_tree tree) {
+	//	
+	//	
+	//	traverse_all_bbox(tree.root);
+	//}
+	//void traverse_all_bbox(KD_Node* node) {
 
+	//}
 	/* Print nodes at a given level */
 	void printGivenLevel(KD_Node* node, int level)
 	{
@@ -401,6 +408,20 @@ namespace trimesh {
 
 				for (int i = 0; i < node->pt1X.size(); i++) {
 					kdArray->pt1X_1d.push_back(node->pt1X[i]);
+					kdArray->pt1Y_1d.push_back(node->pt1Y[i]);
+					kdArray->pt1Z_1d.push_back(node->pt1Z[i]);
+
+					kdArray->pt2X_1d.push_back(node->pt2X[i]);
+					kdArray->pt2Y_1d.push_back(node->pt2Y[i]);
+					kdArray->pt2Z_1d.push_back(node->pt2Z[i]);
+
+					kdArray->pt3X_1d.push_back(node->pt3X[i]);
+					kdArray->pt3Y_1d.push_back(node->pt3Y[i]);
+					kdArray->pt3Z_1d.push_back(node->pt3Z[i]);
+
+					kdArray->fNomarlX_1d.push_back(node->fNomarlX[i]);
+					kdArray->fNomarlY_1d.push_back(node->fNomarlY[i]);
+					kdArray->fNomarlZ_1d.push_back(node->fNomarlZ[i]);
 
 					kdArray->pt1X[id].push_back(node->pt1X[i]); kdArray->pt1Y[id].push_back(node->pt1Y[i]); kdArray->pt1Z[id].push_back(node->pt1Z[i]);
 					kdArray->pt2X[id].push_back(node->pt2X[i]); kdArray->pt2Y[id].push_back(node->pt2Y[i]); kdArray->pt2Z[id].push_back(node->pt2Z[i]);
@@ -598,7 +619,7 @@ namespace trimesh {
 		Node(vector<vector<vec>> facesPts, vector<vec>pts, vector<int> facesIDs, std::vector<vec> fNormals);
 		Node(vector<vector<vec>> facesPts, vector<vec>pts, std::vector<vec> fNormals);
 		~Node();
-
+		void traverse_all_bbox(Traversal_Info &info);
 		void ray_crossing_octants(Traversal_Info & info) {
 			info.bBox_maxs.push_back(bBox.max);
 			info.bBox_mins.push_back(bBox.min);
@@ -689,7 +710,18 @@ namespace trimesh {
 
 	};// END the declaration of NODE
 
-
+	void KDtree_face::Node::traverse_all_bbox(Traversal_Info &info) {
+		if (isEmpty)
+			return;
+		info.bBox_maxs.push_back(bBox.max);
+		info.bBox_mins.push_back(bBox.min);
+		if (isLeaf) {
+			//cout << "reach the leaf";
+			return;
+		}
+		left->traverse_all_bbox(info);
+		right->traverse_all_bbox(info);
+	}
 	KDtree_face::Node::Node(vector<vector<vec>> facesPts, vector<vec>pts, vector<int> facesIDs, std::vector<vec> fNormals) {
 		int nf = facesPts.size();
 		//calculate the bounding box
@@ -971,7 +1003,12 @@ namespace trimesh {
 		return info;
 	}
 
+	KDtree_face::Traversal_Info KDtree_face::find_all_bbox() {
+		Traversal_Info info;
+		root->traverse_all_bbox(info);
 
+		return info;
+	}
 	KDtree_face::Traversal_Info KDtree_face::intersect_face_from_raycast(float * p, float * dir,
 		const float * pNormal)
 	{

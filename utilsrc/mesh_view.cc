@@ -66,24 +66,28 @@ bool grab_only = false;
 int point_size = 1, line_width = 1;
 
 //--------yichen Draw
+bool draw_coords = true;
 bool draw_normals = false;
 bool draw_inwardNormals = true;
 bool draw_geo_distance = true;
-bool draw_feature = true;
+bool draw_feature = false;
 bool draw_RayCasting = false;
-bool draw_cone = true;
+bool draw_cone = false;
 bool draw_Octree = false;
+bool draw_KDtree = false;
 
 vec octRayO = vec(2,-0.5,-2);
 vec octRayDir = vec(-1,1,1);
 int octRay_index = 1;// 7999;// 49999;// 50000;
 
+float cov_matrix[3][3];
 
 Octree* octree;
 BVH * bvh;
 BVH::Traversal_Info bvh_INFO;
 trimesh::Octree::Traversal_Info octRayInfo;
-
+KDtree_face * kdtree_global;
+KDtree_face::Traversal_Info kd_global_info;
 
 template<class Points, class Faces>
 void init_Geodesic_face_point(Points& points, Faces& faces, TriMesh *mesh)
@@ -134,7 +138,9 @@ void need_redraw()
 void cls()
 {
 	glDisable(GL_DITHER);
-	glDisable(GL_BLEND);
+	//glDisable(GL_BLEND);
+	glEnable(GL_BLEND);
+	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 	glDisable(GL_DEPTH_TEST);
 	glDisable(GL_NORMALIZE);
 	glDisable(GL_LIGHTING);
@@ -317,7 +323,7 @@ void draw_path(int i ) {
 	if (draw_geo_distance == false)
 		return;
 	TriMesh * m = meshes[i];
-
+	float path_size = m->bsphere.r / 100;
 	glPushMatrix();
 
 	for (int i = 0; i < path.size(); i++) {
@@ -334,7 +340,7 @@ void draw_path(int i ) {
 		else
 			glColor3f(1.0, 1.0, 1.0);
 		glTranslatef(x, y, z);
-		glutSolidSphere(0.1, 50, 50);
+		glutSolidSphere(path_size, 50, 50);
 		glPopMatrix();
 
 		if (i + 2 <= path.size()) {
@@ -343,7 +349,7 @@ void draw_path(int i ) {
 			double z2 = path[i + 1].z();
 
 			glPushMatrix();
-			glLineWidth(5.0);
+			glLineWidth(path_size);
 			glColor3f(1.0, 0.0, 0.0);
 			glBegin(GL_LINES);
 			glVertex3f(x, y, z);
@@ -368,6 +374,8 @@ void draw_path(int i ) {
 
 //--draw coord
 void drawCoord() {
+	if (!draw_coords)
+		return;
 	glPushMatrix();
 
 	glLineWidth(5.0);
@@ -397,6 +405,49 @@ void drawCoord() {
 	glVertex3f(0, 0, 50);
 	glEnd();
 	glPopMatrix();
+
+	//-------- draw principal axis
+	int px, py, pz;
+	glPushMatrix();
+	
+	px= cov_matrix[0][2]*100;
+	py = cov_matrix[1][2] * 100;
+	pz = cov_matrix[2][2] * 100;
+	glLineWidth(5.0);
+	glColor3f(0.2, 0.2, 0.2);
+	glBegin(GL_LINES);
+	glVertex3f(0, 0, 0);
+	glVertex3f(px, py, pz);
+	glEnd();
+	glPopMatrix();
+
+	px = cov_matrix[0][1] * 100;
+	py = cov_matrix[1][1] * 100;
+	pz = cov_matrix[2][1] * 100;
+	glPushMatrix();
+
+	glLineWidth(5.0);
+	glColor3f(0.2, 0.2, 0.2);
+	glBegin(GL_LINES);
+	glVertex3f(0, 0, 0);
+	glVertex3f(px, py, pz);
+	glEnd();
+	glPopMatrix();
+
+	px = cov_matrix[0][0] * 100;
+	py = cov_matrix[1][0] * 100;
+	pz = cov_matrix[2][0] * 100;
+	glPushMatrix();
+
+	glLineWidth(5.0);
+	glColor3f(0.2, 0.2, 0.2);
+	glBegin(GL_LINES);
+	glVertex3f(0, 0, 0);
+	glVertex3f(px, py, pz);
+	glEnd();
+	glPopMatrix();
+
+
 }
 
 //draw normals
@@ -476,7 +527,7 @@ void drawCone(int i) {
 	if (draw_cone) {
 		TriMesh * m = meshes[i];
 		int nv = m->vertices.size();
-		int id = 0;// rand() % nv;
+		int id = octRay_index;// rand() % nv;
 
 		double x = m->vertices[id][0];
 		double y = m->vertices[id][1];
@@ -503,6 +554,7 @@ void drawCone(int i) {
 
 		//---------draw inward normal
 		endPoint = m->inwardNormals[id] + m->vertices[id];
+		//endPoint =  endPoint;
 		//normalize(endPoint);
 		x2 = endPoint[0];
 		y2 = endPoint[1];
@@ -521,11 +573,18 @@ void drawCone(int i) {
 		vector<vec> rays;
 		//make_cone(45, 10, 0, m->vertices[id], m->normals[id], rays);
 		make_cone(m->vertices[id], m->inwardNormals[id], rays);
-		for (int j = 0; j < rays.size(); j++) {
+		for (int j = 0; j < rays.size()-1; j++) {
 			glPushMatrix();
 			glLineWidth(2.0);
-			glColor3f(0.0, 1.0, 0.0);
+			int interval = (rays.size() - 1) / 4;
+			float rgb_per_angel = 0.25;
+			float red = (j / interval)*rgb_per_angel;
+			float blue = (1 - rgb_per_angel*(j / interval));
+
+			//glColor3f(0.0, 1.0, 0.0);
+			glColor3f(red, 0.0, blue);
 			glBegin(GL_LINES);
+
 
 			//glVertex3f(0, 0, 0);
 			//glVertex3f(v[0], v[1], v[2]);
@@ -539,6 +598,29 @@ void drawCone(int i) {
 }
 
 void drawFeaturePts(int i) {
+	TriMesh * m = meshes[i];
+	//float lmSize = m->bsphere.r / 100;
+	//for (int i = 0; i < m->clustered_LM.size(); i++) {
+	//	float red = 1.0 - (1.0 / m->clustered_LM.size())*i;
+	//	for (int j = 0; j < m->clustered_LM[i].size(); j++) {
+	//		float x = m->clustered_LM[i][j][0]; float y = m->clustered_LM[i][j][1]; float z = m->clustered_LM[i][j][2];
+	//		glPushMatrix();
+
+	//		glColor3f(red, 0.0, 1.0);
+	//		glTranslatef(x, y, z);
+	//		glutSolidSphere(m->bsphere.r / 100, 10, 10);
+	//		glPopMatrix();
+	//	}
+	//}
+	for (int i = 0; i < m->clustered_LM_mean.size(); i++) {
+		float red = 1.0 - (1.0 / m->clustered_LM.size())*i;
+			float x = m->clustered_LM_mean[i][0]; float y = m->clustered_LM_mean[i][1]; float z = m->clustered_LM_mean[i][2];
+			glPushMatrix();
+			glColor3f(red, 0.0, 1.0);
+			glTranslatef(x, y, z);
+			glutSolidSphere(m->bsphere.r / 100, 10, 10);
+			glPopMatrix();
+	}
 	if(draw_feature){
 		TriMesh * m = meshes[i];
 		float lmSize = m->bsphere.r / 100;
@@ -781,7 +863,7 @@ void drawRayCasting(int i) {
 	//}
 }
 
-void drawOctree(int i) {
+void drawTree(int i) {
 	TriMesh * m = meshes[i];
 	
 	if (draw_Octree) {
@@ -795,6 +877,30 @@ void drawOctree(int i) {
 			float cy = (octRayInfo.bBox_maxs[i][1] + octRayInfo.bBox_mins[i][1]) / 2;
 			float cz = (octRayInfo.bBox_maxs[i][2] + octRayInfo.bBox_mins[i][2]) / 2;
 			glPushMatrix();
+			glTranslatef(cx, cy, cz);
+			glScalef(dx, dy, dz);
+			glutWireCube(1);
+			glPopMatrix();
+		}
+
+	}
+	if (draw_KDtree) {
+		kd_global_info = kdtree_global->find_all_bbox();
+		float transparent_kd = 1;
+		
+		for (int i = 0; i < kd_global_info.bBox_maxs.size(); i++) {
+			float dx = kd_global_info.bBox_maxs[i][0] - kd_global_info.bBox_mins[i][0];
+			float dy = kd_global_info.bBox_maxs[i][1] - kd_global_info.bBox_mins[i][1];
+			float dz = kd_global_info.bBox_maxs[i][2] - kd_global_info.bBox_mins[i][2];
+
+			float cx = (kd_global_info.bBox_maxs[i][0] + kd_global_info.bBox_mins[i][0]) / 2;
+			float cy = (kd_global_info.bBox_maxs[i][1] + kd_global_info.bBox_mins[i][1]) / 2;
+			float cz = (kd_global_info.bBox_maxs[i][2] + kd_global_info.bBox_mins[i][2]) / 2;
+			transparent_kd = 1- (i / (kd_global_info.bBox_maxs.size() / 10)) / 10.0;
+			
+			glPushMatrix();
+			glLineWidth(0.1);
+			glColor4f(0.8, 0.0, 0.0,0.3);
 			glTranslatef(cx, cy, cz);
 			glScalef(dx, dy, dz);
 			glutWireCube(1);
@@ -825,7 +931,7 @@ void redraw()
 		drawCone(i);
 		drawFeaturePts(i);
 		drawRayCasting(i);
-		drawOctree(i);
+		drawTree(i);
 	}
 
 	glPopMatrix();
@@ -1013,6 +1119,8 @@ void doubleclick(int button, int x, int y)
 	// Render and read back ID reference image
 	camera.setupGL(global_xf * global_bsph.center, global_bsph.r);
 	glDisable(GL_BLEND);
+
+	
 	glDisable(GL_LIGHTING);
 	glClearColor(1,1,1,1);
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -1139,19 +1247,17 @@ void idle()
 }
 int file_index = 0;
 const int fileN = 5;
-char * filenames_input[fileN] = { "..\\..\\..\\data\\beak_sdf.ply" ,"..\\..\\..\\data\\beak_sdf2.ply" ,"..\\..\\..\\data\\frog.ply",
-"..\\..\\..\\data\\2934_smooth_sdf.ply" ,"..\\..\\..\\data\\bird_one_component_sdf.ply" };
+char * filenames_input[fileN] = { "..\\..\\..\\data\\beak_sdf.ply" ,"..\\..\\..\\data\\beak_sdf2.ply" ,"..\\..\\..\\data\\beak_sdf3.ply",
+"..\\..\\..\\data\\beak_sdf4.ply" ,"..\\..\\..\\data\\beak_sdf5.ply" };
 //char * f = filenames[0];
 //read mesh()
 void readMesh(int file_index) {
 	TriMesh *themesh = TriMesh::read(filenames_input[file_index]);
 	themesh->need_bsphere();
-	for (int i = 0; i < themesh->vertices.size(); i++) {
-		for (int j = 0; j < 3; j++) {
-			themesh->vertices[i][j] = themesh->vertices[i][j] - themesh->bsphere.center[j];
-		}
-
-	}
+	scale(themesh, (1 / themesh->bsphere.r));
+	themesh->bsphere = {};
+	point com = mesh_center_of_mass(themesh);
+	trans(themesh, -com);
 
 	themesh->bsphere = {};
 	themesh->normals.clear();
@@ -1172,24 +1278,17 @@ void readMesh(int file_index) {
 	//------FEATURES EXTRACTION
 	//Assign the Vertex quality to sdf
 	themesh->sdf = themesh->quality;
-
-	if (file_index < 2)
+//	themesh->need_sdf_kd_tree_gpu();
+	if (file_index < 5)
 		themesh->need_feature_points_curv_sdf_beak();
 	else
 		themesh->need_feature_points_curv_sdf();
-	//std::cout << "The size of feature points :" << themesh->landmarkID.size() << endl;
-	//std::cout << "colors? :" << themesh->colors.size() << endl;
-
+	themesh->need_k_mean(5);
 	//------COLORING PART--------------
 
-	//themesh->color_vertex(themesh->landmarkID);
-	//themesh->color_vertex(themesh->quality);
-	//themesh->color_vertex(themesh->sdf_brute,false);
-	themesh->color_vertex(themesh->sdf, false);
-	//cout << themesh->curv1[0];
-	//calculate the color
 
-
+	//themesh->color_vertex(themesh->shape_index, false);
+	themesh->color_shape_index();
 	//cout << compSizes[0];
 	meshes.clear();
 	meshes.push_back(themesh);
@@ -1199,7 +1298,7 @@ void readMesh(int file_index) {
 }
 
 int mesh_attri_index = 0;
-const int attriN = 3;
+const int attriN = 4;
 
 // Keyboard
 #define Ctrl (1-'a')
@@ -1282,16 +1381,22 @@ void keyboardfunc(unsigned char key, int, int)
 			//octRayDir = rotation(octRayDir, -10, vec(0, 1, 0));; break;
 		}
 		case '<': {
-			//octRay_index = (octRay_index - 1) % meshes[0]->vertices.size();
+			octRay_index = (octRay_index - 1) % meshes[0]->vertices.size();
 		//	readMesh((file_index--) % fileN);
 			break;
 			//octRayDir = rotation(octRayDir, -10, vec(0, 1, 0));; break;
 		}
+		case'm': {
+		//	cout << "showing gaussian curv ..." << endl;
+			readMesh((file_index++)%fileN);
+			break;
+			
+		}
 		case'c': {
-			mesh_attri_index = (mesh_attri_index +1) % attriN;
+			mesh_attri_index = (mesh_attri_index + 1) % attriN;
 			meshes[0]->colors.clear();
 			switch (mesh_attri_index) {
-			case 0:		
+			case 0:
 				cout << "showing gaussian curv ..." << endl;
 				meshes[0]->color_vertex(meshes[0]->gaus_curv, true);
 				break;
@@ -1302,6 +1407,10 @@ void keyboardfunc(unsigned char key, int, int)
 			case 2:
 				cout << "showing shape diameter function ..." << endl;
 				meshes[0]->color_vertex(meshes[0]->sdf, true);
+				break;
+			case 3:
+				cout << "Show no color ..." << endl;
+				meshes[0]->colors.clear();
 				break;
 			}
 		}
@@ -1341,12 +1450,14 @@ int main(int argc, char *argv[])
 		//filename = "..\\..\\..\\data\\torus_sdf.ply";
 		//filename = "..\\..\\..\\data\\external_surface_only.ply";
 	//	filename = "..\\..\\..\\data\\bird_one_component_sdf.ply";
-	//	filename = "..\\..\\..\\data\\beak_sdf3.ply";
-		filename = "..\\..\\..\\data\\torus2.ply";
+		filename = "..\\..\\..\\data\\beak_sdf.ply";
+		//filename = "..\\..\\..\\data\\torus2.ply";
+	//	filename = "..\\..\\..\\data\\cone.ply";
 		//filename = "..\\..\\..\\data\\cow2.ply";
 	//filename = "..\\..\\..\\data\\elephant.off";
 	//	filename = "..\\..\\..\\data\\cube.ply";
 	//filename = "..\\..\\..\\data\\Armadillo.ply";
+//		filename = "..\\..\\..\\data\\l_leg_50.ply";
 	//filename = "..\\..\\..\\data\\frog.ply";
 //		filename = "..\\..\\..\\data\\2934_smooth_sdf.ply";
 	//	filename = "..\\..\\..\\data\\Armadillo.ply";
@@ -1365,6 +1476,16 @@ int main(int argc, char *argv[])
 		//	}
 		//	
 		//}
+		themesh->need_bsphere();
+		scale(themesh, (1 / themesh->bsphere.r));
+		themesh->bsphere = {};
+		point com = mesh_center_of_mass(themesh);
+		
+		trans(themesh, -com);
+		
+
+
+		
 
 		themesh->bsphere = {};
 		themesh->normals.clear();
@@ -1379,28 +1500,25 @@ int main(int argc, char *argv[])
 		themesh->need_neighbors();
 
 		themesh->need_curvatures();
+		float C[3][3];
+		mesh_covariance(themesh, cov_matrix);
+		float e[3];
+		eigdc<float, 3>(cov_matrix, e);
 
-
+		if (draw_KDtree) {
+			kdtree_global = new KDtree_face(themesh->faces, themesh->vertices, themesh->faceNormals);
+		}
+		
 		//KDtree_face * kdface_tree = new KDtree_face(themesh->faces, themesh->vertices, themesh->faceNormals);
 		//kdface_tree->intersect_face_from_raycast(themesh->vertices[1], themesh->inwardNormals[1], themesh->normals[1]);
 
-
-		//KD_tree aaa;
-		//trimesh::buildKDTree(aaa, themesh->faces, themesh->vertices, themesh->faceNormals);
+		
+	/*	KD_tree aaa;
+		trimesh::buildKDTree(aaa, themesh->faces, themesh->vertices, themesh->faceNormals);*/
 		//int height = heightKD_Tree(aaa.root);
 		//KD_tree_array * kd_array =  KDTreeToArray(aaa);
 		//rayToFaces(kd_array , themesh->vertices[1] , themesh->inwardNormals[1],themesh->normals[1]);
 		
-	
-		themesh->need_sdf_bvh();
-		//test octree
-
-		//octree = new Octree(themesh->vertices, 1);
-	//	Octree * octreeFace = new Octree(themesh->faces, themesh->vertices, themesh->faceNormals);
-	/*	octRayInfo = octreeFace->intersect_face_from_raycast(themesh->vertices[0], themesh->inwardNormals[0], themesh->normals[0]);
-*/
-		//octree = new Octree(themesh->faces, themesh->vertices, themesh->faceNormals);
-		//Octree::Node * a =octree->getRoot();
 		
 		//--ray is outside of the shape
 		//octRayInfo = octree->find_cube_from_raycast(octRayO, octRayDir);
@@ -1431,13 +1549,23 @@ int main(int argc, char *argv[])
 
 		//------FEATURES EXTRACTION
 		//Assign the Vertex quality to sdf
+		//themesh->need_sdf_kd_tree_gpu();
+		themesh->need_sdf_kd_tree_gpu();
 		//if (themesh->quality.size() != 0) {
 		//	themesh->sdf = themesh->quality;
 		//}
+		//else {
+		//
+		//	themesh->need_sdf_kd_tree_gpu();
+		//}
 		
-		themesh->need_feature_points_curv_sdf_beak();
+		//themesh->need_feature_points_curv_sdf_beak();
+		//themesh->need_k_mean(5);
+		
 		//std::cout << "The size of feature points :" << themesh->landmarkID.size() << endl;
 		//std::cout << "colors? :" << themesh->colors.size() << endl;
+
+
 
 		//------COLORING PART--------------
 
@@ -1447,10 +1575,11 @@ int main(int argc, char *argv[])
 	/*	themesh->color_vertex(themesh->gaus_curv, true);
 		themesh->color_vertex(themesh->mean_curv, true);*/
 		themesh->color_vertex(themesh->sdf, false);
+		themesh->color_vertex(themesh->shape_index, false);
 		//cout << themesh->curv1[0];
 		//calculate the color
 
-		themesh->writeAttri();
+	//	themesh->writeAttri();
 
 		//cout << compSizes[0];
 		
@@ -1469,14 +1598,15 @@ int main(int argc, char *argv[])
 		//std::vector<double> points;
 		//std::vector<unsigned> faces;
 		//init_Geodesic_face_point(points, faces, themesh);
-		
+		//
 		//geodesic::Mesh geoMesh;
 
 		//trimesh::init_geod_mesh(themesh, geoMesh);
 
 		//KDtree *kd = new KDtree(themesh->vertices);
 		//const float *a=kd->closest_to_pt(themesh->bsphere.center);
-	//	//path = trimesh::cal_geo_dis(5, 6, points, faces);
+		//path = cal_geo_dis(themesh->landmarkID[0], themesh->landmarkID[1], geoMesh);
+	//	path = cal_geo_dis(1, 2000, geoMesh);
 	//	//trimesh::cal_geo_dis(points, faces);
 		
 		

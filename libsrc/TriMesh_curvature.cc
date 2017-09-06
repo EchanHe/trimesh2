@@ -251,14 +251,21 @@ void TriMesh::need_curvatures()
 	}
 	
 	//yichen he compute mean and gaussian
-	mean_curv.resize(curv1.size());
-	gaus_curv.resize(curv1.size());
+	mean_curv.resize(nv);
+	gaus_curv.resize(nv);
+	shape_index.resize(nv);
 	std::transform(curv1.begin(), curv1.end(), curv2.begin(), mean_curv.begin(), std::plus<float>());
 	std::transform(mean_curv.begin(), mean_curv.end(), mean_curv.begin() , std::bind1st(std::multiplies<float>(),0.5));
 	//std::cout << mean_curv[0];
 	std::vector<float>temp = mean_curv;
 	//-------------------
 	std::transform(curv1.begin(), curv1.end(), curv2.begin(), gaus_curv.begin(), std::multiplies<float>());
+
+	for (int i = 0; i < nv; i++) {
+		float tan_value = (curv1[i] + curv2[i]) / -(abs(curv1[i] - curv2[i]));
+		shape_index[i] = (2 / M_PIf) * atanf(tan_value);
+	}
+
 	//std::transform(mean_curv.begin(),mean_curv.end(), mean_curv.begin() , );
 	
 	//need_curvatures_threshold_color();
